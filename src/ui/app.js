@@ -20,6 +20,7 @@ import { openInfo } from './info.js';
 import { DEMO_BALANCE } from '../config.js';
 
 const VW = 240;
+const SAVE_VERSION = 3;   // bump whenever levels or the run's shape change, so old saves are not loaded into new maps
 let VH = 150;
 const GOLD = '#f0b648', INK = '#06050a', DIM = '#a99cc6', TEXT = '#f3e6c9', RED = '#ff4a3a', GREEN = '#7ee07a';
 const CELL_W = 34, CELL_H = 30, REEL_GAP = 2;
@@ -56,18 +57,20 @@ export function startApp() {
   function saveRun() {
     if (!run || !run.level) return store.set('run', null);
     const L = run.level;
-    store.set('run', { ...run, level: null, L: { player: L.player, enemies: L.enemies.map(e => ({ ...e, fx: undefined })), chests: L.chests, pickups: L.pickups, doors: L.doors, keys: L.keys, seen: Array.from(L.seen).join(''), rng: L.rng } });
+    store.set('run', { ...run, v: SAVE_VERSION, level: null, L: { player: L.player, enemies: L.enemies.map(e => ({ ...e, fx: undefined })), chests: L.chests, pickups: L.pickups, doors: L.doors, keys: L.keys, seen: Array.from(L.seen).join(''), rng: L.rng } });
   }
   function loadRun() {
-    const s = store.get('run'); if (!s || s.over) return null;
+    const s = store.get('run'); if (!s || s.over || s.v !== SAVE_VERSION) return null;   // a run from another version: start afresh
     const r = { ...s }; delete r.L;
     G.enterRealm(r);
-    const L = r.level;
+    const L = r.level, p = s.L.player;
+    if (s.L.seen.length !== L.w * L.h || !p || p.x < 0 || p.y < 0 || p.x >= L.w || p.y >= L.h || L.tiles[p.y * L.w + p.x] === T.WALL) return null;
     Object.assign(L, { player: s.L.player, enemies: s.L.enemies.map(e => ({ ...e, fx: { hurt: 0, atk: 0, die: 0 } })), chests: s.L.chests, pickups: s.L.pickups, doors: s.L.doors, keys: s.L.keys, rng: s.L.rng });
     L.seen = Uint8Array.from(s.L.seen.split(''), Number); r.ward = s.ward;
     return r;
   }
-  run = loadRun();
+  try { run = loadRun(); } catch { run = null; }
+  if (!run) store.set("run", null);
 
   // ------------------------------------------------------------------------------------------------ realm graphics
   let RG = null;   // { tex, lm, lmS, ambient, fog, fogDist }
