@@ -1,0 +1,47 @@
+# One-Armed Hunter
+
+A Lovecraftian first-person dungeon crawler played on a five-reel slot machine, in the spirit of Doom RPG and
+Eye of the Beholder. Portrait, touch first, one HTML file. The sibling of
+[One-Armed Hero](https://github.com/ojojboll-ui/slot-dungeon), with the same certified slot machine.
+
+Demo play only. There is no real money in this build.
+
+## The game
+
+- **The crawl:** a generated maze per realm, seen in first person through a grid raycaster with sliding doors,
+  textured floors and ceilings, coloured light and fog. Turn-based like Doom RPG: the things in the dark move only
+  when you do. A minimap draws itself as you explore.
+- **Only fights and chests spin.** Walking, turning, medkits and the Sign of Banishing are free turns. Attacking and
+  opening a chest are paid spins at your bet.
+- **The reels fight.** The middle row strikes with the arms you hold (sabre: blades, revolver and rifle: gunshots,
+  each with its own reach and ammunition), lanterns block, tomes whisper. Every winning line fires its symbol's power:
+  hits, wards, healing, stuns and the Elder Sign's critical. Silver bullets in Hold & Spin each hit; during Blood Moon
+  free spins the dark holds still.
+- **Chests** hold the brass and bone keys that open each realm's two locked doors, and what the reels show decides
+  the rest: rounds, medkits, wards, cartridges, signs, more health, a sharper sabre.
+- **Three realms:** The Black Wood, Ashcombe Manor and The Crypt Beneath, each with its own textures, enemies and a
+  guardian before the way out.
+- **The two never mix.** Credits change only through stakes and wins in `src/slot/session.js`. Nothing in the dungeon
+  alters the reels, the paytable or the RTP (96.00%, see [docs/PAR.md](docs/PAR.md)), and the bet changes nothing
+  in the dungeon.
+
+## Build
+
+    npm install
+    npm run build        # writes index.html and dist/artifact.html
+    npm test             # paytable, RNG, RTP, level generation and the slot/dungeon boundary
+    npm run par          # exact RTP by full enumeration
+    node tools/bot.mjs   # a bot plays whole runs and reports win rate, deaths per realm and spins per realm
+
+Everything on screen and everything you hear is generated in code at start-up. There are no image or audio files.
+
+| Path | What it holds |
+|---|---|
+| `src/slot/` | The One-Armed Hero machine, unchanged: reel strips, paytable, features, wallet and history |
+| `src/world/` | Realms, enemies, weapons, maze generation with keys and locks, turns and combat rules |
+| `src/gfx/` | Raycaster, procedural textures and sprites, reel symbols, the CRT presenter |
+| `src/ui/` | The game screen, controls, the rules overlay |
+| `src/audio/` | FM synthesis and the sequencer from One-Armed Hero, plus the dungeon's sounds |
+
+Controls: arrows or W/S walk, A/D sidestep, Q/E or left/right turn, Space attack or open, H medkit, F sign,
+R change arms, M map.

@@ -1,0 +1,27 @@
+{
+  "name": "slotmachinerpg",
+  "version": "0.1.0",
+  "description": "One-Armed Hunter: a Lovecraftian first-person dungeon crawler played on a 96% RTP five-reel slot.",
+  "directories": {
+    "doc": "docs",
+    "test": "test"
+  },
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "par": "node tools/par.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ojojboll-ui/SlotMachineRPG.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ojojboll-ui/SlotMachineRPG/issues"
+  },
+  "homepage": "https://github.com/ojojboll-ui/SlotMachineRPG#readme",
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  },
+  "type": "module",
+  "private": true
+}
