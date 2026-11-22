@@ -24,11 +24,14 @@ export const THEME = {
 //  ammo:   the pouch a paid spin draws one round from
 //  spread: share of the damage that also hits every enemy next to the target
 export const WEAPONS = {
-  sabre:    { name: 'Cavalry Sabre',    short: 'SABRE',   key: 'sword', row: 3, range: 1, ammo: null },
-  revolver: { name: 'Service Revolver', short: 'REVOLV',  key: 'fire',  row: 5, range: 5, ammo: 'bullets' },
-  shotgun:  { name: 'Coach Gun',        short: 'SHOTGN',  key: 'fire',  row: 5, range: 3, ammo: 'shells', spread: 0.6 },
-  rifle:    { name: 'Elephant Rifle',   short: 'RIFLE',   key: 'fire',  row: 8, range: 10, ammo: 'cartridges' },
+  sabre:    { name: 'Cavalry Sabre',    short: 'SABRE',   key: 'sword', row: 3, range: 1, ammo: null, kind: 'blade' },
+  revolver: { name: 'Service Revolver', short: 'REVOLV',  key: 'fire',  row: 5, range: 5, ammo: 'bullets', kind: 'shot' },
+  shotgun:  { name: 'Coach Gun',        short: 'SHOTGN',  key: 'fire',  row: 5, range: 3, ammo: 'shells', spread: 0.6, kind: 'scatter' },
+  rifle:    { name: 'Elephant Rifle',   short: 'RIFLE',   key: 'fire',  row: 8, range: 10, ammo: 'cartridges', kind: 'heavy' },
 };
+// Attack kinds. Every enemy is weak to some (double damage) and resists others (half damage).
+export const KINDS = { blade: 'Blade', shot: 'Pistol', scatter: 'Scatter', heavy: 'Heavy', magic: 'Magic' };
+export const WEAK_MULT = 2, RESIST_MULT = 0.5;
 export const WEAPON_ORDER = ['sabre', 'revolver', 'shotgun', 'rifle'];
 export const AMMO_NAMES = { bullets: 'rounds', shells: 'shells', cartridges: 'cartridges' };
 
@@ -70,39 +73,41 @@ export const CHEST = {
 };
 
 // Enemies. hp, dmg [min,max], hit chance in %, range in tiles (1 = melee), speed (moves per turn), sight in tiles.
+// weak / resist: attack kinds that do double / half damage. Those who strike from afar are weak up close; the quick
+// are weak to a spread of shot; the huge are weak to heavy rounds; the dead and the unseen are weak to magic.
 // role is what makes each one worth killing first:
 //   ranged  hits from afar        fast   two steps a turn      heal   mends the most hurt ally in sight
 //   tank    slow, hits very hard  phase  walks through doors   summon calls a minion every few turns
 export const ENEMIES = {
-  ghoul:    { name: 'Ghoul',           hp: 12, dmg: [3, 5],  hit: 75, range: 1, speed: 1, sight: 7, look: 'ghoul' },
-  hound:    { name: 'Fen Hound',       hp: 8,  dmg: [2, 4],  hit: 80, range: 1, speed: 2, sight: 9, look: 'hound', role: 'fast' },
-  cultist:  { name: 'Hooded Cultist',  hp: 10, dmg: [2, 4],  hit: 60, range: 5, speed: 1, sight: 8, look: 'cultist', role: 'ranged', drops: 'bullets' },
-  shade:    { name: 'Shade',           hp: 14, dmg: [3, 6],  hit: 70, range: 1, speed: 1, sight: 8, look: 'shade', role: 'phase' },
-  servant:  { name: 'Hollow Servant',  hp: 18, dmg: [4, 6],  hit: 75, range: 1, speed: 1, sight: 6, look: 'servant' },
-  drowned:  { name: 'Drowned One',     hp: 22, dmg: [5, 7],  hit: 75, range: 1, speed: 1, sight: 7, look: 'drowned' },
-  mass:     { name: 'Crawling Mass',   hp: 32, dmg: [6, 9],  hit: 80, range: 1, speed: 1, sight: 6, look: 'mass', role: 'tank', slow: true },
-  priest:   { name: 'Cult Priest',     hp: 14, dmg: [3, 5],  hit: 65, range: 5, speed: 1, sight: 8, look: 'priest', role: 'heal', heal: 8, drops: 'cartridges' },
+  ghoul:    { name: 'Ghoul',           hp: 12, dmg: [3, 5],  hit: 75, range: 1, speed: 1, sight: 7, look: 'ghoul', weak: ['blade'], resist: [] },
+  hound:    { name: 'Fen Hound',       hp: 8,  dmg: [2, 4],  hit: 80, range: 1, speed: 2, sight: 9, look: 'hound', role: 'fast', weak: ['scatter', 'blade'], resist: ['heavy'] },
+  cultist:  { name: 'Hooded Cultist',  hp: 10, dmg: [2, 4],  hit: 60, range: 5, speed: 1, sight: 8, look: 'cultist', role: 'ranged', drops: 'bullets', weak: ['blade', 'scatter'], resist: ['shot'] },
+  shade:    { name: 'Shade',           hp: 14, dmg: [3, 6],  hit: 70, range: 1, speed: 1, sight: 8, look: 'shade', role: 'phase', weak: ['magic'], resist: ['shot', 'heavy'] },
+  servant:  { name: 'Hollow Servant',  hp: 18, dmg: [4, 6],  hit: 75, range: 1, speed: 1, sight: 6, look: 'servant', weak: ['shot'], resist: ['blade'] },
+  drowned:  { name: 'Drowned One',     hp: 22, dmg: [5, 7],  hit: 75, range: 1, speed: 1, sight: 7, look: 'drowned', weak: ['heavy', 'magic'], resist: ['shot'] },
+  mass:     { name: 'Crawling Mass',   hp: 32, dmg: [6, 9],  hit: 80, range: 1, speed: 1, sight: 6, look: 'mass', role: 'tank', slow: true, weak: ['heavy'], resist: ['blade', 'scatter'] },
+  priest:   { name: 'Cult Priest',     hp: 14, dmg: [3, 5],  hit: 65, range: 5, speed: 1, sight: 8, look: 'priest', role: 'heal', heal: 8, drops: 'cartridges', weak: ['blade', 'scatter'], resist: ['magic'] },
   // bosses guard the way out of each realm and call for help
-  stag:     { name: 'The Antlered Shepherd',  hp: 70,  dmg: [5, 8],  hit: 80, range: 1, speed: 1, sight: 7, look: 'stag', boss: true, role: 'summon', summon: 'hound', every: 4 },
-  widow:    { name: 'The Widow in the Paper', hp: 95,  dmg: [5, 8],  hit: 75, range: 4, speed: 1, sight: 7, look: 'widow', boss: true, role: 'summon', summon: 'shade', every: 4 },
-  waiter:   { name: 'That Which Waits Below', hp: 140, dmg: [7, 10], hit: 80, range: 2, speed: 0, sight: 7, look: 'waiter', boss: true, role: 'summon', summon: 'drowned', every: 3 },
+  stag:     { name: 'The Antlered Shepherd',  hp: 70,  dmg: [5, 8],  hit: 80, range: 1, speed: 1, sight: 7, look: 'stag', boss: true, role: 'summon', summon: 'hound', every: 4, weak: ['blade'], resist: ['magic'] },
+  widow:    { name: 'The Widow in the Paper', hp: 95,  dmg: [5, 8],  hit: 75, range: 4, speed: 1, sight: 7, look: 'widow', boss: true, role: 'summon', summon: 'shade', every: 4, weak: ['scatter', 'blade'], resist: ['shot'] },
+  waiter:   { name: 'That Which Waits Below', hp: 140, dmg: [7, 10], hit: 80, range: 2, speed: 0, sight: 7, look: 'waiter', boss: true, role: 'summon', summon: 'drowned', every: 3, weak: ['heavy'], resist: ['blade'] },
 };
 export const ROLE_TAGS = { ranged: 'RANGED', fast: 'FAST', heal: 'HEALER', tank: 'BRUTE', phase: 'PHASES', summon: 'SUMMONER' };
 
 // size: tiles across; roomMax: largest room interior; density: enemies per 16 tiles of room
-const LOOT_EARLY = [['bullets', 5], ['medkit', 3], ['banish', 2], ['flame', 1], ['leech', 1], ['shells', 2]];
+const LOOT_EARLY = [['bullets', 5], ['shells', 3], ['cartridges', 2], ['medkit', 3], ['banish', 2], ['flame', 1], ['leech', 1]];
 const LOOT_LATE = [['bullets', 4], ['shells', 3], ['cartridges', 2], ['medkit', 3], ['banish', 2], ['flame', 2], ['leech', 2], ['dread', 1]];
 export const REALMS = [
-  { id: 'forest', name: 'The Black Wood', sub: 'Chapter I', size: 33, roomMax: 11, density: 0.38,
-    enemies: [['ghoul', 4], ['hound', 3], ['cultist', 2], ['priest', 1]], boss: 'stag', chests: 4, loot: LOOT_EARLY, weapon: 'shotgun', weaponZone: 0,
+  { id: 'forest', name: 'The Black Wood', sub: 'Chapter I', size: 21, roomMax: 7, density: 1.1,
+    enemies: [['ghoul', 4], ['hound', 3], ['cultist', 2], ['priest', 1]], boss: 'stag', chests: 4, loot: LOOT_EARLY, weapons: [['shotgun', 0], ['rifle', 1]],
     music: 'calm', fog: [26, 20, 46], fogDist: 8, sky: true, deco: ['grave', 'grave', 'stump', 'bones'], light: 'lamp', exit: 'gate',
     intro: 'The letter spoke of a manor beyond the wood. The trees lean closer as you walk.' },
-  { id: 'mansion', name: 'Ashcombe Manor', sub: 'Chapter II', size: 35, roomMax: 9, density: 0.46,
-    enemies: [['shade', 3], ['servant', 3], ['cultist', 3], ['priest', 2], ['ghoul', 1]], boss: 'widow', chests: 5, loot: LOOT_LATE, weapon: 'rifle', weaponZone: 1,
+  { id: 'mansion', name: 'Ashcombe Manor', sub: 'Chapter II', size: 23, roomMax: 7, density: 1.2,
+    enemies: [['shade', 3], ['servant', 3], ['cultist', 3], ['priest', 2], ['ghoul', 1]], boss: 'widow', chests: 5, loot: LOOT_LATE, weapons: [],
     music: 'map', fog: [22, 10, 26], fogDist: 7.5, sky: false, deco: ['candles', 'armchair', 'clock'], light: 'candles', exit: 'stairs',
     intro: 'Every portrait in the hall has the same red eyes. The door locks behind you.' },
-  { id: 'crypt', name: 'The Crypt Beneath', sub: 'Chapter III', size: 37, roomMax: 13, density: 0.5,
-    enemies: [['drowned', 3], ['mass', 2], ['priest', 2], ['cultist', 2], ['ghoul', 2]], boss: 'waiter', chests: 5, loot: LOOT_LATE,
+  { id: 'crypt', name: 'The Crypt Beneath', sub: 'Chapter III', size: 25, roomMax: 8, density: 1.25,
+    enemies: [['drowned', 3], ['mass', 2], ['priest', 2], ['cultist', 2], ['ghoul', 2]], boss: 'waiter', chests: 5, loot: LOOT_LATE, weapons: [],
     music: 'title', fog: [8, 4, 10], fogDist: 6.5, sky: false, deco: ['bones', 'bones', 'brazier'], light: 'brazier', exit: 'seal',
     intro: 'Below the manor the stone is wet and warm. Something vast is breathing.' },
 ];

@@ -186,10 +186,10 @@ export function generate(realm, rng, tries = 0) {
   // pickups: ammunition, medkits and black magic lying about, and the realm's weapon
   const loot = realm.loot;
   for (const r of rooms) {
-    const n = rng.int(100) < 25 + r.area ? 1 + (r.area > 30 ? rng.int(2) : 0) : 0;
+    const n = 1 + (rng.int(100) < 20 + r.area * 2 ? 1 : 0) + (r.area > 30 ? rng.int(2) : 0);
     for (let k = 0; k < n; k++) { const pool = floorIn(r, i => !nearDoor(i)); if (!pool.length) break; pickups.push({ ...take(rng.pick(pool)), kind: rng.weighted(loot) }); }
   }
-  if (realm.weapon) { const rs = roomsIn(realm.weaponZone ?? 1); const r = rs.length ? rng.pick(rs) : startRoom, pool = floorIn(r, i => !nearDoor(i)); if (pool.length) pickups.push({ ...take(rng.pick(pool)), kind: realm.weapon }); }
+  for (const [kind, z] of realm.weapons || []) { const rs = roomsIn(z); const r = rs.length ? rng.pick(rs) : startRoom, pool = floorIn(r, i => !nearDoor(i)); if (pool.length) pickups.push({ ...take(rng.pick(pool)), kind }); }
 
   const decos = [];
   for (const r of rooms) {   // every room has a light

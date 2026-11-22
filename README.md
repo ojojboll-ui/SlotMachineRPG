@@ -8,14 +8,16 @@ Demo play only. There is no real money in this build.
 
 ## The game
 
-- **The crawl:** each realm is a generated set of small, medium and large rooms that open into one another, with
+- **The crawl:** each realm is a small, crowded, generated set of rooms that open into one another, with
   pillars in the big halls, seen in first person through a grid raycaster with sliding doors, textured floors and
   ceilings, coloured light and fog. Turn-based like Doom RPG: the things in the dark move only when you do. A minimap
   draws itself as you explore.
 - **Choosing what to kill.** Rooms wake together, so fights are against groups. Tap an enemy (or press T) to aim at
   it; anything in front of you within your arms' reach can be hit. Enemies have roles: healers mend their allies,
   cultists shoot from afar, hounds run two steps a turn, brutes hit hard, shades walk through doors, and each guardian
-  summons help.
+  summons help. Each enemy is weak to some kinds of attack (double damage) and resists others (half): those who
+  strike from afar are weak to the sabre and the coach gun, brutes and drowned things to the rifle's heavy rounds,
+  shades to black magic. Arrows at the edges of the view point to enemies you are not facing.
 - **Only fights and chests spin.** Walking, turning, medkits and the Sign of Banishing are free turns. Attacking and
   opening a chest are paid spins at your bet.
 - **The reels fight.** The middle row strikes with the arms you hold (sabre: blades; revolver, coach gun and rifle:

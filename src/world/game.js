@@ -3,7 +3,7 @@
 // depends on the bet: credits move only in src/slot/session.js.
 
 import { HERO, WEAPONS, WEAPON_ORDER, ENEMIES, REALMS, KEY_NAMES, LINE_HIT, LINE_WARD, LINE_HEAL, LINE_TOME, TOME_STUN,
-         ROW_TOME, ROW_WARD, EYE_HIT, SILVER_HIT, SILVER_GRAND, CHEST, SPELLS, SPELL_ORDER, AMMO_NAMES } from './data.js';
+         ROW_TOME, ROW_WARD, EYE_HIT, SILVER_HIT, SILVER_GRAND, CHEST, SPELLS, SPELL_ORDER, AMMO_NAMES, WEAK_MULT, RESIST_MULT } from './data.js';
 import { generate, bfs, T, DIRS, isDoorTile, makeEnemy } from './maze.js';
 import { seededRng } from '../rng.js';
 
@@ -186,7 +186,7 @@ export function castSpell(run, key) {
   for (const e of hit) {
     if (S.stun) { e.stun = Math.max(e.stun, S.stun); e.awake = true; ev.push({ type: 'stunned', enemy: e }); }
     if (S.dmg) {
-      const before = e.hp; ev.push(...hurt(run, e, S.dmg));
+      const before = e.hp; ev.push(...hurt(run, e, S.dmg, 'magic'));
       if (S.leech) { const h = Math.min(run.maxHp - run.hp, before - Math.max(0, e.hp)); run.hp += h; if (h) ev.push({ type: 'heal', n: h }); }
     }
   }
@@ -204,10 +204,17 @@ export function nearestVisible(run, range) {
   return best;
 }
 
-function hurt(run, e, n) {
-  const L = run.level, real = Math.min(e.hp, Math.max(0, Math.round(n)));
+/** Weakness: 'weak' (double), 'resist' (half) or '' for an attack kind against an enemy. */
+export function affinity(e, kind) {
+  const D = ENEMIES[e.type];
+  return kind && D.weak && D.weak.includes(kind) ? 'weak' : kind && D.resist && D.resist.includes(kind) ? 'resist' : '';
+}
+const MULT = { weak: WEAK_MULT, resist: RESIST_MULT, '': 1 };
+
+function hurt(run, e, n, kind) {
+  const L = run.level, mod = affinity(e, kind), real = Math.min(e.hp, Math.max(0, Math.round(n * MULT[mod])));
   e.hp -= real; e.awake = true; run.stats.dealt += real;
-  const ev = [{ type: 'hurt', enemy: e, n: real }];
+  const ev = [{ type: 'hurt', enemy: e, n: real, mod }];
   if (e.hp <= 0) {
     e.dead = true; run.stats.kills++;
     ev.push({ type: 'kill', enemy: e, text: `The ${ENEMIES[e.type].name.toLowerCase()} falls.` });
@@ -271,9 +278,9 @@ export function resolveAttack(run, res, target) {
   if (target && !target.dead) {
     if (fx.stun) target.stun = Math.max(target.stun, fx.stun);
     const W = weapon(run), around = W.spread && fx.dmg > 0 ? run.level.enemies.filter(e => !e.dead && e !== target && reach(e, target) === 1) : [];
-    if (fx.dmg > 0) ev.push(...hurt(run, target, fx.dmg));
+    if (fx.dmg > 0) ev.push(...hurt(run, target, fx.dmg, W.kind));
     else ev.push({ type: 'miss', enemy: target });
-    for (const e of around) ev.push(...hurt(run, e, Math.round(fx.dmg * W.spread)));
+    for (const e of around) ev.push(...hurt(run, e, fx.dmg * W.spread, W.kind));
   }
   const frozen = res.kind === 'free' || res.freeAward > 0 || !!res.hold;
   if (!frozen) ev.push(...endTurn(run));

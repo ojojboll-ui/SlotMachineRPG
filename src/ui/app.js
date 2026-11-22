@@ -6,7 +6,7 @@ import * as S from '../slot/session.js';
 import { gameRng, hashStr } from '../rng.js';
 import * as G from '../world/game.js';
 import { T, DIRS, isDoorTile } from '../world/maze.js';
-import { REALMS, ENEMIES, WEAPONS, THEME, KEY_NAMES, SPELLS, SPELL_ORDER, ROLE_TAGS, AMMO_NAMES } from '../world/data.js';
+import { REALMS, ENEMIES, WEAPONS, THEME, KEY_NAMES, SPELLS, SPELL_ORDER, ROLE_TAGS, AMMO_NAMES, KINDS } from '../world/data.js';
 import { createView, buildLightMap } from '../gfx/raycast.js';
 import { realmTextures, skyPanorama } from '../gfx/textures.js';
 import { buildSprites } from '../gfx/sprites.js';
@@ -256,7 +256,11 @@ export function startApp() {
       case 'spell': fx.purple = 1; sfx('curse'); if (e.key === 'flame') sfx('fire'); say(e.text, '#c8a0ff'); await wait(300); break;
       case 'enemyHeal': { A(e.ally).heal = 1; floatAt(e.ally, '+' + e.n, GREEN); sfx('heal', { rate: 0.7, vol: 0.5 }); say(`The ${ENEMIES[e.enemy.type].name.toLowerCase()} mends the ${ENEMIES[e.ally.type].name.toLowerCase()}.`, '#c8a0ff'); await wait(250); break; }
       case 'summon': { const a = A(e.minion); a.die = 0; say(e.text, RED); sfx('growl', { rate: 0.8 }); fx.purple = 0.6; await wait(350); break; }
-      case 'hurt': { const a = A(e.enemy); a.hurt = 1; floatAt(e.enemy, '-' + e.n, e.n >= 20 ? GOLD : TEXT); sfx(e.n >= 20 ? 'heavy' : 'hit'); await wait(120); break; }
+      case 'hurt': {
+        const a = A(e.enemy); a.hurt = 1;
+        floatAt(e.enemy, (e.mod === 'weak' ? 'WEAK! ' : '') + '-' + e.n, e.mod === 'weak' ? '#ffb040' : e.mod === 'resist' ? '#8a8aa0' : e.n >= 20 ? GOLD : TEXT);
+        sfx(e.n >= 20 || e.mod === 'weak' ? 'heavy' : 'hit'); if (e.mod === 'resist') sfx('block', { vol: 0.4 }); await wait(120); break;
+      }
       case 'miss': floatAt(e.enemy, 'MISS', DIM); break;
       case 'kill': { const a = A(e.enemy); a.die = 0.001; say(e.text, GOLD); sfx('die'); await wait(300); break; }
       case 'enemyAtk': {
@@ -502,6 +506,8 @@ export function startApp() {
       ctx.fillStyle = 'rgba(6,5,10,0.8)'; ctx.fillRect(cx - bw / 2 - 1, by - 1, bw + 2, 4);
       ctx.fillStyle = inReach.has(e) ? '#d03030' : '#6a3030'; ctx.fillRect(cx - bw / 2, by, Math.max(1, bw * e.hp / e.maxHp), 2);
       if (e.stun) text(ctx, 'Z', cx + bw / 2 + 2, by - 3, '#c8a0ff');
+      const af = G.affinity(e, WEAPONS[run.weapon].kind);
+      if (af && inReach.has(e)) text(ctx, af === 'weak' ? '×2' : '½', cx - bw / 2 - 2, by - 3, af === 'weak' ? '#ffb040' : '#8a8aa0', { align: 'right' });
       if (e === chosen) {
         const k = 4 + Math.sin(now / 150) * 1.5, c = inReach.has(e) ? RED : DIM;
         ctx.fillStyle = c;
@@ -514,8 +520,16 @@ export function startApp() {
       ctx.fillStyle = 'rgba(6,5,10,0.7)'; ctx.fillRect(2, 2, textWidth(label) + (tag ? textWidth(tag) + 8 : 0) + 6, 11);
       text(ctx, label, 5, 4, okReach ? TEXT : DIM);
       if (tag) text(ctx, tag, 5 + textWidth(label) + 6, 4, '#ffb060');
-      if (!okReach) text(ctx, 'OUT OF REACH', 5, 15, DIM);
+      const af = G.affinity(chosen, WEAPONS[run.weapon].kind);
+      const kinds = list => list && list.length ? list.map(k => KINDS[k]).join(' ') : '';
+      let ly = 15;
+      const line2 = (t, col) => { ctx.fillStyle = 'rgba(6,5,10,0.7)'; ctx.fillRect(2, ly - 2, textWidth(t) + 6, 10); text(ctx, t, 5, ly, col); ly += 10; };
+      if (!okReach) line2('OUT OF REACH', DIM);
+      else line2(`${WEAPONS[run.weapon].short}: ${af === 'weak' ? 'WEAK ×2' : af === 'resist' ? 'RESISTS ½' : 'NORMAL'}`, af === 'weak' ? '#ffb040' : af === 'resist' ? '#8a8aa0' : DIM);
+      if (D.weak && D.weak.length) line2('WEAK: ' + kinds(D.weak), '#e0a060');
+      if (D.resist && D.resist.length) line2('RESISTS: ' + kinds(D.resist), '#8a8aa0');
     }
+    drawEdgeMarks(L, dirX, dirY, inReach);
     // messages
     let my = VH - 10;
     for (let i = msgs.length - 1; i >= 0; i--) {
@@ -534,6 +548,32 @@ export function startApp() {
     ctx.restore();
     // a thin frame under the view
     ctx.fillStyle = '#2a1e3a'; ctx.fillRect(0, VH, VW, 1);
+  }
+
+  /** Little chevrons at the left, right and bottom edges for enemies outside the view. */
+  function drawEdgeMarks(L, dirX, dirY, inReach) {
+    const p = L.player, pulse = 0.6 + Math.sin(now / 200) * 0.4;
+    for (const e of L.enemies) {
+      if (e.dead || inReach.has(e)) continue;
+      const a = A(e), dx = a.x - cam.x, dy = a.y - cam.y, dist = Math.hypot(dx, dy);
+      if (dist > 9 || !(e.awake || G.lineOfSight(L, p.x, p.y, e.x, e.y))) continue;
+      const fwd = dx * dirX + dy * dirY, side = dx * -dirY + dy * dirX;          // side > 0: to the right
+      const ang = Math.atan2(side, fwd);
+      if (Math.abs(ang) < 0.55 && G.lineOfSight(L, p.x, p.y, e.x, e.y)) continue;   // on screen
+      const near = clamp(1 - dist / 9, 0.25, 1), col = e.awake ? `rgba(255,60,40,${(0.45 + near * 0.55) * (e.awake ? pulse : 1)})` : `rgba(170,150,200,${0.3 + near * 0.4})`;
+      const sz = 4 + Math.round(near * 3);
+      ctx.fillStyle = col; ctx.beginPath();
+      if (Math.abs(ang) > 2.2) {                                                    // behind: the bottom edge
+        const x = clamp(VW / 2 - side / Math.max(1, Math.abs(fwd) + 1) * VW / 3, 10, VW - 10), y = VH - 3;
+        ctx.moveTo(x - sz, y - sz); ctx.lineTo(x + sz, y - sz); ctx.lineTo(x, y);
+      } else {
+        const right = ang > 0, x = right ? VW - 3 : 3;
+        const y = clamp(VH / 2 + (Math.abs(ang) - 1.57) * VH / 3.2, 62, VH - 14);   // ahead-ish higher, behind-ish lower
+        if (right) { ctx.moveTo(x - sz, y - sz); ctx.lineTo(x, y); ctx.lineTo(x - sz, y + sz); }
+        else { ctx.moveTo(x + sz, y - sz); ctx.lineTo(x, y); ctx.lineTo(x + sz, y + sz); }
+      }
+      ctx.fill();
+    }
   }
 
   function drawMagic() {

@@ -49,7 +49,7 @@ export function playRun(seed) {
         if (!list.length) continue;
         const t = list.sort((a, b) => score(a) - score(b))[0];
         const around = WEAPONS[wk].spread ? L.enemies.filter(e => !e.dead && e !== t && G.reach(e, t) === 1).length : 0;
-        const val = score(t) - around * 300 - (wk === 'sabre' ? 0 : 50);
+        const af = process.env.BLIND ? '' : G.affinity(t, WEAPONS[wk].kind), val = score(t) - around * 300 - (wk === 'sabre' ? 0 : 50) + (af === 'weak' ? -400 : af === 'resist' ? 400 : 0);
         if (!best || val < best.val) best = { d, wk, t, val, n: list.length };
       }
     }

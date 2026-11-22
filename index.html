@@ -540,6 +540,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   // src/world/game.js
   var game_exports = {};
   __export(game_exports, {
+    affinity: () => affinity,
     ammoOf: () => ammoOf,
     attackTarget: () => attackTarget,
     castSpell: () => castSpell,
@@ -588,11 +589,14 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     skull: { name: "Skull", short: "SKULL" }
   };
   var WEAPONS = {
-    sabre: { name: "Cavalry Sabre", short: "SABRE", key: "sword", row: 3, range: 1, ammo: null },
-    revolver: { name: "Service Revolver", short: "REVOLV", key: "fire", row: 5, range: 5, ammo: "bullets" },
-    shotgun: { name: "Coach Gun", short: "SHOTGN", key: "fire", row: 5, range: 3, ammo: "shells", spread: 0.6 },
-    rifle: { name: "Elephant Rifle", short: "RIFLE", key: "fire", row: 8, range: 10, ammo: "cartridges" }
+    sabre: { name: "Cavalry Sabre", short: "SABRE", key: "sword", row: 3, range: 1, ammo: null, kind: "blade" },
+    revolver: { name: "Service Revolver", short: "REVOLV", key: "fire", row: 5, range: 5, ammo: "bullets", kind: "shot" },
+    shotgun: { name: "Coach Gun", short: "SHOTGN", key: "fire", row: 5, range: 3, ammo: "shells", spread: 0.6, kind: "scatter" },
+    rifle: { name: "Elephant Rifle", short: "RIFLE", key: "fire", row: 8, range: 10, ammo: "cartridges", kind: "heavy" }
   };
+  var KINDS = { blade: "Blade", shot: "Pistol", scatter: "Scatter", heavy: "Heavy", magic: "Magic" };
+  var WEAK_MULT = 2;
+  var RESIST_MULT = 0.5;
   var WEAPON_ORDER = ["sabre", "revolver", "shotgun", "rifle"];
   var AMMO_NAMES = { bullets: "rounds", shells: "shells", cartridges: "cartridges" };
   var SPELLS = {
@@ -637,36 +641,35 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     // two or more tomes on the row: a page of black magic
   };
   var ENEMIES = {
-    ghoul: { name: "Ghoul", hp: 12, dmg: [3, 5], hit: 75, range: 1, speed: 1, sight: 7, look: "ghoul" },
-    hound: { name: "Fen Hound", hp: 8, dmg: [2, 4], hit: 80, range: 1, speed: 2, sight: 9, look: "hound", role: "fast" },
-    cultist: { name: "Hooded Cultist", hp: 10, dmg: [2, 4], hit: 60, range: 5, speed: 1, sight: 8, look: "cultist", role: "ranged", drops: "bullets" },
-    shade: { name: "Shade", hp: 14, dmg: [3, 6], hit: 70, range: 1, speed: 1, sight: 8, look: "shade", role: "phase" },
-    servant: { name: "Hollow Servant", hp: 18, dmg: [4, 6], hit: 75, range: 1, speed: 1, sight: 6, look: "servant" },
-    drowned: { name: "Drowned One", hp: 22, dmg: [5, 7], hit: 75, range: 1, speed: 1, sight: 7, look: "drowned" },
-    mass: { name: "Crawling Mass", hp: 32, dmg: [6, 9], hit: 80, range: 1, speed: 1, sight: 6, look: "mass", role: "tank", slow: true },
-    priest: { name: "Cult Priest", hp: 14, dmg: [3, 5], hit: 65, range: 5, speed: 1, sight: 8, look: "priest", role: "heal", heal: 8, drops: "cartridges" },
+    ghoul: { name: "Ghoul", hp: 12, dmg: [3, 5], hit: 75, range: 1, speed: 1, sight: 7, look: "ghoul", weak: ["blade"], resist: [] },
+    hound: { name: "Fen Hound", hp: 8, dmg: [2, 4], hit: 80, range: 1, speed: 2, sight: 9, look: "hound", role: "fast", weak: ["scatter", "blade"], resist: ["heavy"] },
+    cultist: { name: "Hooded Cultist", hp: 10, dmg: [2, 4], hit: 60, range: 5, speed: 1, sight: 8, look: "cultist", role: "ranged", drops: "bullets", weak: ["blade", "scatter"], resist: ["shot"] },
+    shade: { name: "Shade", hp: 14, dmg: [3, 6], hit: 70, range: 1, speed: 1, sight: 8, look: "shade", role: "phase", weak: ["magic"], resist: ["shot", "heavy"] },
+    servant: { name: "Hollow Servant", hp: 18, dmg: [4, 6], hit: 75, range: 1, speed: 1, sight: 6, look: "servant", weak: ["shot"], resist: ["blade"] },
+    drowned: { name: "Drowned One", hp: 22, dmg: [5, 7], hit: 75, range: 1, speed: 1, sight: 7, look: "drowned", weak: ["heavy", "magic"], resist: ["shot"] },
+    mass: { name: "Crawling Mass", hp: 32, dmg: [6, 9], hit: 80, range: 1, speed: 1, sight: 6, look: "mass", role: "tank", slow: true, weak: ["heavy"], resist: ["blade", "scatter"] },
+    priest: { name: "Cult Priest", hp: 14, dmg: [3, 5], hit: 65, range: 5, speed: 1, sight: 8, look: "priest", role: "heal", heal: 8, drops: "cartridges", weak: ["blade", "scatter"], resist: ["magic"] },
     // bosses guard the way out of each realm and call for help
-    stag: { name: "The Antlered Shepherd", hp: 70, dmg: [5, 8], hit: 80, range: 1, speed: 1, sight: 7, look: "stag", boss: true, role: "summon", summon: "hound", every: 4 },
-    widow: { name: "The Widow in the Paper", hp: 95, dmg: [5, 8], hit: 75, range: 4, speed: 1, sight: 7, look: "widow", boss: true, role: "summon", summon: "shade", every: 4 },
-    waiter: { name: "That Which Waits Below", hp: 140, dmg: [7, 10], hit: 80, range: 2, speed: 0, sight: 7, look: "waiter", boss: true, role: "summon", summon: "drowned", every: 3 }
+    stag: { name: "The Antlered Shepherd", hp: 70, dmg: [5, 8], hit: 80, range: 1, speed: 1, sight: 7, look: "stag", boss: true, role: "summon", summon: "hound", every: 4, weak: ["blade"], resist: ["magic"] },
+    widow: { name: "The Widow in the Paper", hp: 95, dmg: [5, 8], hit: 75, range: 4, speed: 1, sight: 7, look: "widow", boss: true, role: "summon", summon: "shade", every: 4, weak: ["scatter", "blade"], resist: ["shot"] },
+    waiter: { name: "That Which Waits Below", hp: 140, dmg: [7, 10], hit: 80, range: 2, speed: 0, sight: 7, look: "waiter", boss: true, role: "summon", summon: "drowned", every: 3, weak: ["heavy"], resist: ["blade"] }
   };
   var ROLE_TAGS = { ranged: "RANGED", fast: "FAST", heal: "HEALER", tank: "BRUTE", phase: "PHASES", summon: "SUMMONER" };
-  var LOOT_EARLY = [["bullets", 5], ["medkit", 3], ["banish", 2], ["flame", 1], ["leech", 1], ["shells", 2]];
+  var LOOT_EARLY = [["bullets", 5], ["shells", 3], ["cartridges", 2], ["medkit", 3], ["banish", 2], ["flame", 1], ["leech", 1]];
   var LOOT_LATE = [["bullets", 4], ["shells", 3], ["cartridges", 2], ["medkit", 3], ["banish", 2], ["flame", 2], ["leech", 2], ["dread", 1]];
   var REALMS = [
     {
       id: "forest",
       name: "The Black Wood",
       sub: "Chapter I",
-      size: 33,
-      roomMax: 11,
-      density: 0.38,
+      size: 21,
+      roomMax: 7,
+      density: 1.1,
       enemies: [["ghoul", 4], ["hound", 3], ["cultist", 2], ["priest", 1]],
       boss: "stag",
       chests: 4,
       loot: LOOT_EARLY,
-      weapon: "shotgun",
-      weaponZone: 0,
+      weapons: [["shotgun", 0], ["rifle", 1]],
       music: "calm",
       fog: [26, 20, 46],
       fogDist: 8,
@@ -680,15 +683,14 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       id: "mansion",
       name: "Ashcombe Manor",
       sub: "Chapter II",
-      size: 35,
-      roomMax: 9,
-      density: 0.46,
+      size: 23,
+      roomMax: 7,
+      density: 1.2,
       enemies: [["shade", 3], ["servant", 3], ["cultist", 3], ["priest", 2], ["ghoul", 1]],
       boss: "widow",
       chests: 5,
       loot: LOOT_LATE,
-      weapon: "rifle",
-      weaponZone: 1,
+      weapons: [],
       music: "map",
       fog: [22, 10, 26],
       fogDist: 7.5,
@@ -702,13 +704,14 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       id: "crypt",
       name: "The Crypt Beneath",
       sub: "Chapter III",
-      size: 37,
-      roomMax: 13,
-      density: 0.5,
+      size: 25,
+      roomMax: 8,
+      density: 1.25,
       enemies: [["drowned", 3], ["mass", 2], ["priest", 2], ["cultist", 2], ["ghoul", 2]],
       boss: "waiter",
       chests: 5,
       loot: LOOT_LATE,
+      weapons: [],
       music: "title",
       fog: [8, 4, 10],
       fogDist: 6.5,
@@ -967,17 +970,17 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     enemies.push(makeEnemy(realm.boss, ex, ey, 99));
     const loot = realm.loot;
     for (const r of rooms) {
-      const n = rng.int(100) < 25 + r.area ? 1 + (r.area > 30 ? rng.int(2) : 0) : 0;
+      const n = 1 + (rng.int(100) < 20 + r.area * 2 ? 1 : 0) + (r.area > 30 ? rng.int(2) : 0);
       for (let k = 0; k < n; k++) {
         const pool = floorIn(r, (i) => !nearDoor(i));
         if (!pool.length) break;
         pickups.push({ ...take(rng.pick(pool)), kind: rng.weighted(loot) });
       }
     }
-    if (realm.weapon) {
-      const rs = roomsIn(realm.weaponZone ?? 1);
+    for (const [kind, z] of realm.weapons || []) {
+      const rs = roomsIn(z);
       const r = rs.length ? rng.pick(rs) : startRoom, pool = floorIn(r, (i) => !nearDoor(i));
-      if (pool.length) pickups.push({ ...take(rng.pick(pool)), kind: realm.weapon });
+      if (pool.length) pickups.push({ ...take(rng.pick(pool)), kind });
     }
     const decos = [];
     for (const r of rooms) {
@@ -1243,7 +1246,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       }
       if (S2.dmg) {
         const before = e.hp;
-        ev.push(...hurt(run, e, S2.dmg));
+        ev.push(...hurt(run, e, S2.dmg, "magic"));
         if (S2.leech) {
           const h = Math.min(run.maxHp - run.hp, before - Math.max(0, e.hp));
           run.hp += h;
@@ -1266,12 +1269,17 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     }
     return best;
   }
-  function hurt(run, e, n) {
-    const L = run.level, real = Math.min(e.hp, Math.max(0, Math.round(n)));
+  function affinity(e, kind) {
+    const D = ENEMIES[e.type];
+    return kind && D.weak && D.weak.includes(kind) ? "weak" : kind && D.resist && D.resist.includes(kind) ? "resist" : "";
+  }
+  var MULT = { weak: WEAK_MULT, resist: RESIST_MULT, "": 1 };
+  function hurt(run, e, n, kind) {
+    const L = run.level, mod2 = affinity(e, kind), real = Math.min(e.hp, Math.max(0, Math.round(n * MULT[mod2])));
     e.hp -= real;
     e.awake = true;
     run.stats.dealt += real;
-    const ev = [{ type: "hurt", enemy: e, n: real }];
+    const ev = [{ type: "hurt", enemy: e, n: real, mod: mod2 }];
     if (e.hp <= 0) {
       e.dead = true;
       run.stats.kills++;
@@ -1331,9 +1339,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     if (target && !target.dead) {
       if (fx.stun) target.stun = Math.max(target.stun, fx.stun);
       const W = weapon(run), around = W.spread && fx.dmg > 0 ? run.level.enemies.filter((e) => !e.dead && e !== target && reach(e, target) === 1) : [];
-      if (fx.dmg > 0) ev.push(...hurt(run, target, fx.dmg));
+      if (fx.dmg > 0) ev.push(...hurt(run, target, fx.dmg, W.kind));
       else ev.push({ type: "miss", enemy: target });
-      for (const e of around) ev.push(...hurt(run, e, Math.round(fx.dmg * W.spread)));
+      for (const e of around) ev.push(...hurt(run, e, fx.dmg * W.spread, W.kind));
     }
     const frozen = res.kind === "free" || res.freeAward > 0 || !!res.hold;
     if (!frozen) ev.push(...endTurn(run));
@@ -3175,7 +3183,7 @@ void main(){
   };
   var MODES = { phrygian: [0, 1, 3, 5, 7, 8, 10], harmonic: [0, 2, 3, 5, 7, 8, 11], aeolian: [0, 2, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10] };
   var PROGS = [[0, 5, 2, 6], [0, 3, 5, 4], [0, 1, 0, 6], [0, 6, 5, 4], [0, 2, 3, 4], [0, 5, 3, 4]];
-  var KINDS = {
+  var KINDS2 = {
     title: { bpm: 84, bass: "x...............", drums: null, arp: 2, lead: 0.5, pad: true },
     map: { bpm: 92, bass: "x.......x.....x.", drums: "soft", arp: 2, lead: 0, pad: true },
     calm: { bpm: 76, bass: "x...............", drums: null, arp: 4, lead: 0.4, pad: true },
@@ -3189,7 +3197,7 @@ void main(){
     fast: { kick: "x..x..x.x..x..x.", snare: "....x.......x..x", hat: "xxxxxxxxxxxxxxxx", ohat: "..............x." }
   };
   function makeSong(kind, rng) {
-    const K = KINDS[kind] || KINDS.map, mode = MODES[rng.pick(Object.keys(MODES))], prog = rng.pick(PROGS), root = 33 + rng.int(8);
+    const K = KINDS2[kind] || KINDS2.map, mode = MODES[rng.pick(Object.keys(MODES))], prog = rng.pick(PROGS), root = 33 + rng.int(8);
     const deg = (d, oct = 0) => root + oct * 12 + mode[(d % 7 + 7) % 7] + Math.floor(d / 7) * 12;
     const events = [], BARS = 8;
     const motif = Array.from({ length: 8 }, () => rng.int(5) - 1), rhythm = rng.pick(["x..x..x.x...x.x.", "x.x...x.x.x...x.", "x...x.x...x.x.xx", "x..x.x..x..x.x.."]);
@@ -3362,8 +3370,10 @@ void main(){
 <p>Walking, turning, using a medkit or casting black magic costs nothing: those turns are free, but the things in the dark move whenever you do. <b>Only two things spin the reels:</b> attacking, and opening a chest. Each such spin is an ordinary paid spin at your bet.</p>
 <p>Each realm hides two locked doors. The <b>brass key</b> and the <b>bone key</b> lie in chests. A guardian stands before the way out.</p>
 <p><b>Choosing what to kill.</b> The realms are rooms full of things, and each spin strikes one of them. Tap an enemy in the view (or press T) to aim at it; red brackets mark your target and a bar shows its health. Anything within your arms' reach and in front of you can be hit. Some are worth killing first:</p>
-<table><tr><th>Enemy</th><th>Health</th><th>Hits</th><th>Reach</th><th>Trait</th></tr>
-${Object.values(ENEMIES).map((E) => `<tr><td>${E.name}</td><td>${E.hp}</td><td>${E.dmg[0]}\u2013${E.dmg[1]}</td><td>${E.range}</td><td>${E.role ? ROLE_TAGS[E.role] : ""}</td></tr>`).join("")}</table>
+<p><b>Weak and resistant.</b> Every attack has a kind: the sabre is Blade, the revolver Pistol, the coach gun Scatter, the rifle Heavy, and black magic is Magic. An enemy takes double damage from the kinds it is weak to and half from those it resists. Those who strike from afar are weak up close. Your target's line at the top of the view shows how your arms fare against it.</p>
+<div style="overflow-x:auto"><table><tr><th>Enemy</th><th>Health</th><th>Hits</th><th>Reach</th><th>Trait</th><th>Weak</th><th>Resists</th></tr>
+${Object.values(ENEMIES).map((E) => `<tr><td>${E.name}</td><td>${E.hp}</td><td>${E.dmg[0]}\u2013${E.dmg[1]}</td><td>${E.range}</td><td>${E.role ? ROLE_TAGS[E.role] : ""}</td><td>${(E.weak || []).map((k) => KINDS[k]).join(", ")}</td><td>${(E.resist || []).map((k) => KINDS[k]).join(", ")}</td></tr>`).join("")}</table></div>
+<p>Small arrows at the edges of the view point to enemies you are not facing: red for those that are awake, grey for those still asleep.</p>
 <p>Healers mend the most hurt ally in sight; summoners call a new minion every few turns; when one thing in a room wakes, the whole room wakes.</p>
 <p><b>Controls.</b> Arrows or W/S to walk, A/D to sidestep, Q/E or left/right to turn, Space to attack or open, T next target, H medkit, F black magic (1\u20134 to cast), R change arms, M map.</p>
 
@@ -3371,7 +3381,7 @@ ${Object.values(ENEMIES).map((E) => `<tr><td>${E.name}</td><td>${E.hp}</td><td>$
 <p><b>The middle row</b> always strikes, win or not, depending on the arms you hold:</p>
 <table><tr><th>Arms</th><th>Strikes with</th><th>Per symbol</th><th>Reach</th><th>Ammunition</th></tr>
 ${Object.values(WEAPONS).map((W) => `<tr><td>${W.name}</td><td>${ico(W.key)}</td><td>${W.row}</td><td>${W.range} tile${W.range > 1 ? "s" : ""}</td><td>${W.ammo ? "1 per paid spin" : "none"}</td></tr>`).join("")}</table>
-<p>The coach gun's spread also hits every enemy standing next to your target for ${Math.round(WEAPONS.shotgun.spread * 100)}% of the damage. You find the coach gun in the wood and the rifle in the manor.</p>
+<p>The coach gun's spread also hits every enemy standing next to your target for ${Math.round(WEAPONS.shotgun.spread * 100)}% of the damage. Both the coach gun and the rifle lie somewhere in the wood.</p>
 <p>Whatever you hold: each ${ico("tome")} on the row whispers for ${ROW_TOME}, each ${ico("shield")} blocks ${ROW_WARD}, each reel the ${ico("eye")} covers hits for ${EYE_HIT}.</p>
 <p><b>Every winning line fights</b> (3 / 4 / 5 of a kind): ${ico("sword")} and ${ico("fire")} hit for ${s345(LINE_HIT)}; ${ico("shield")} blocks ${s345(LINE_WARD)}; ${ico("flask")} heals ${s345(LINE_HEAL)}; ${ico("tome")} hits for ${s345(LINE_TOME)} and stuns for ${s345(TOME_STUN)} turns; ${ico("crown")} doubles all damage that spin (\xD73 for five).</p>
 <p>${ico("obol")} Hold &amp; Spin: each silver bullet hits for ${SILVER_HIT}, a full screen for ${SILVER_GRAND} more. ${ico("moon")} Free spins: the dark holds still and every free spin is another attack.</p>
@@ -3891,8 +3901,9 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         case "hurt": {
           const a = A2(e.enemy);
           a.hurt = 1;
-          floatAt(e.enemy, "-" + e.n, e.n >= 20 ? GOLD : TEXT);
-          sfx(e.n >= 20 ? "heavy" : "hit");
+          floatAt(e.enemy, (e.mod === "weak" ? "WEAK! " : "") + "-" + e.n, e.mod === "weak" ? "#ffb040" : e.mod === "resist" ? "#8a8aa0" : e.n >= 20 ? GOLD : TEXT);
+          sfx(e.n >= 20 || e.mod === "weak" ? "heavy" : "hit");
+          if (e.mod === "resist") sfx("block", { vol: 0.4 });
           await wait(120);
           break;
         }
@@ -4307,6 +4318,8 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         ctx.fillStyle = inReach.has(e) ? "#d03030" : "#6a3030";
         ctx.fillRect(cx - bw / 2, by, Math.max(1, bw * e.hp / e.maxHp), 2);
         if (e.stun) text(ctx, "Z", cx + bw / 2 + 2, by - 3, "#c8a0ff");
+        const af = affinity(e, WEAPONS[run.weapon].kind);
+        if (af && inReach.has(e)) text(ctx, af === "weak" ? "\xD72" : "\xBD", cx - bw / 2 - 2, by - 3, af === "weak" ? "#ffb040" : "#8a8aa0", { align: "right" });
         if (e === chosen) {
           const k = 4 + Math.sin(now / 150) * 1.5, c = inReach.has(e) ? RED : DIM;
           ctx.fillStyle = c;
@@ -4323,8 +4336,21 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         ctx.fillRect(2, 2, textWidth2(label) + (tag ? textWidth2(tag) + 8 : 0) + 6, 11);
         text(ctx, label, 5, 4, okReach ? TEXT : DIM);
         if (tag) text(ctx, tag, 5 + textWidth2(label) + 6, 4, "#ffb060");
-        if (!okReach) text(ctx, "OUT OF REACH", 5, 15, DIM);
+        const af = affinity(chosen, WEAPONS[run.weapon].kind);
+        const kinds = (list) => list && list.length ? list.map((k) => KINDS[k]).join(" ") : "";
+        let ly = 15;
+        const line2 = (t, col) => {
+          ctx.fillStyle = "rgba(6,5,10,0.7)";
+          ctx.fillRect(2, ly - 2, textWidth2(t) + 6, 10);
+          text(ctx, t, 5, ly, col);
+          ly += 10;
+        };
+        if (!okReach) line2("OUT OF REACH", DIM);
+        else line2(`${WEAPONS[run.weapon].short}: ${af === "weak" ? "WEAK \xD72" : af === "resist" ? "RESISTS \xBD" : "NORMAL"}`, af === "weak" ? "#ffb040" : af === "resist" ? "#8a8aa0" : DIM);
+        if (D.weak && D.weak.length) line2("WEAK: " + kinds(D.weak), "#e0a060");
+        if (D.resist && D.resist.length) line2("RESISTS: " + kinds(D.resist), "#8a8aa0");
       }
+      drawEdgeMarks(L, dirX, dirY, inReach);
       let my = VH - 10;
       for (let i = msgs.length - 1; i >= 0; i--) {
         const m = msgs[i], age = (now - m.t) / 1e3;
@@ -4351,6 +4377,40 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
       ctx.restore();
       ctx.fillStyle = "#2a1e3a";
       ctx.fillRect(0, VH, VW, 1);
+    }
+    function drawEdgeMarks(L, dirX, dirY, inReach) {
+      const p = L.player, pulse = 0.6 + Math.sin(now / 200) * 0.4;
+      for (const e of L.enemies) {
+        if (e.dead || inReach.has(e)) continue;
+        const a = A2(e), dx = a.x - cam.x, dy = a.y - cam.y, dist = Math.hypot(dx, dy);
+        if (dist > 9 || !(e.awake || lineOfSight(L, p.x, p.y, e.x, e.y))) continue;
+        const fwd = dx * dirX + dy * dirY, side = dx * -dirY + dy * dirX;
+        const ang = Math.atan2(side, fwd);
+        if (Math.abs(ang) < 0.55 && lineOfSight(L, p.x, p.y, e.x, e.y)) continue;
+        const near = clamp(1 - dist / 9, 0.25, 1), col = e.awake ? `rgba(255,60,40,${(0.45 + near * 0.55) * (e.awake ? pulse : 1)})` : `rgba(170,150,200,${0.3 + near * 0.4})`;
+        const sz = 4 + Math.round(near * 3);
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        if (Math.abs(ang) > 2.2) {
+          const x = clamp(VW / 2 - side / Math.max(1, Math.abs(fwd) + 1) * VW / 3, 10, VW - 10), y = VH - 3;
+          ctx.moveTo(x - sz, y - sz);
+          ctx.lineTo(x + sz, y - sz);
+          ctx.lineTo(x, y);
+        } else {
+          const right = ang > 0, x = right ? VW - 3 : 3;
+          const y = clamp(VH / 2 + (Math.abs(ang) - 1.57) * VH / 3.2, 62, VH - 14);
+          if (right) {
+            ctx.moveTo(x - sz, y - sz);
+            ctx.lineTo(x, y);
+            ctx.lineTo(x - sz, y + sz);
+          } else {
+            ctx.moveTo(x + sz, y - sz);
+            ctx.lineTo(x, y);
+            ctx.lineTo(x + sz, y + sz);
+          }
+        }
+        ctx.fill();
+      }
     }
     function drawMagic() {
       const bw = 56, bh = 30, g = 2, n = SPELL_ORDER.length, x0 = (VW - (bw * 2 + g)) / 2, y0 = VH - 2 * (bh + g) - 18;
