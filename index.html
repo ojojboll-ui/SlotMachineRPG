@@ -33,6 +33,12 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 <div id="fail" hidden><p>Loading failed.</p></div>
 <div id="info" class="overlay" hidden><div id="infoBody"></div><button id="infoClose">Back to the game</button></div>
 <script>(() => {
+  var __defProp = Object.defineProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+
   // src/slot/machine.js
   var REELS = 5;
   var ROWS = 3;
@@ -531,8 +537,44 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     return h >>> 0;
   }
 
+  // src/world/game.js
+  var game_exports = {};
+  __export(game_exports, {
+    ammoOf: () => ammoOf,
+    attackTarget: () => attackTarget,
+    castSpell: () => castSpell,
+    chestAhead: () => chestAhead,
+    chestAt: () => chestAt,
+    currentTarget: () => currentTarget,
+    cycleTarget: () => cycleTarget,
+    cycleWeapon: () => cycleWeapon,
+    doorOpen: () => doorOpen,
+    enemyAt: () => enemyAt,
+    enterRealm: () => enterRealm,
+    freeSpinTarget: () => freeSpinTarget,
+    inView: () => inView,
+    lineOfSight: () => lineOfSight,
+    lootOf: () => lootOf,
+    nearestVisible: () => nearestVisible,
+    newRun: () => newRun,
+    nextRealm: () => nextRealm,
+    passable: () => passable,
+    reach: () => reach,
+    resolveAttack: () => resolveAttack,
+    resolveChest: () => resolveChest,
+    reveal: () => reveal,
+    setTarget: () => setTarget,
+    step: () => step,
+    strikeOf: () => strikeOf,
+    targets: () => targets,
+    tileAt: () => tileAt,
+    turn: () => turn,
+    useMedkit: () => useMedkit,
+    weapon: () => weapon
+  });
+
   // src/world/data.js
-  var HERO = { hp: 60, medkitHeal: 25, startMedkits: 2, startBullets: 18, startCartridges: 0, startSigns: 1 };
+  var HERO = { hp: 60, medkitHeal: 25, startMedkits: 2, startBullets: 18 };
   var THEME = {
     crown: { name: "Elder Sign", short: "ELDER SIGN" },
     tome: { name: "Forbidden Tome", short: "TOME" },
@@ -546,11 +588,20 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     skull: { name: "Skull", short: "SKULL" }
   };
   var WEAPONS = {
-    sabre: { name: "Cavalry Sabre", key: "sword", row: 3, range: 1, ammo: null },
-    revolver: { name: "Service Revolver", key: "fire", row: 5, range: 4, ammo: "bullets" },
-    rifle: { name: "Elephant Rifle", key: "fire", row: 8, range: 9, ammo: "cartridges" }
+    sabre: { name: "Cavalry Sabre", short: "SABRE", key: "sword", row: 3, range: 1, ammo: null },
+    revolver: { name: "Service Revolver", short: "REVOLV", key: "fire", row: 5, range: 5, ammo: "bullets" },
+    shotgun: { name: "Coach Gun", short: "SHOTGN", key: "fire", row: 5, range: 3, ammo: "shells", spread: 0.6 },
+    rifle: { name: "Elephant Rifle", short: "RIFLE", key: "fire", row: 8, range: 10, ammo: "cartridges" }
   };
-  var WEAPON_ORDER = ["sabre", "revolver", "rifle"];
+  var WEAPON_ORDER = ["sabre", "revolver", "shotgun", "rifle"];
+  var AMMO_NAMES = { bullets: "rounds", shells: "shells", cartridges: "cartridges" };
+  var SPELLS = {
+    banish: { name: "Sign of Banishing", short: "BANISH", desc: "25 damage to your target.", dmg: 25 },
+    flame: { name: "Black Flame", short: "FLAME", desc: "9 damage to every enemy you can see.", dmg: 9, all: true },
+    leech: { name: "Blood Leech", short: "LEECH", desc: "14 damage to your target, and you heal as much.", dmg: 14, leech: true },
+    dread: { name: "Veil of Dread", short: "DREAD", desc: "Every enemy you can see loses its next 2 turns.", stun: 2, all: true }
+  };
+  var SPELL_ORDER = ["banish", "flame", "leech", "dread"];
   var LINE_HIT = { 3: 6, 4: 14, 5: 32 };
   var LINE_WARD = { 3: 5, 4: 10, 5: 22 };
   var LINE_HEAL = { 3: 6, 4: 12, 5: 25 };
@@ -561,18 +612,19 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   var EYE_HIT = 3;
   var SILVER_HIT = 3;
   var SILVER_GRAND = 60;
-  var SIGN_DAMAGE = 25;
   var CHEST = {
     bulletsPerGun: 2,
     // each gunshot on the row
     bulletLine: { 3: 6, 4: 12, 5: 24 },
+    shellLine: { 3: 3, 4: 6, 5: 12 },
+    // gunshot lines also give shells once you carry the coach gun
     medkitLine: { 3: 1, 4: 2, 5: 3 },
     wardLine: { 3: 6, 4: 12, 5: 25 },
     // a lasting ward that soaks damage before health
     hpLine: { 3: 5, 4: 10, 5: 20 },
     // elder sign line: more maximum health
-    signLine: { 3: 1, 4: 2, 5: 3 },
-    // tome line: Signs of Banishing
+    spellLine: { 3: 1, 4: 2, 5: 3 },
+    // tome line: pages of black magic
     honeLine: { 3: 1, 4: 1, 5: 2 },
     // sabre line: the sabre gets sharper
     silverPerObol: 1,
@@ -581,77 +633,89 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     // each lantern on the row
     flasksForMedkit: 2,
     // two or more laudanum on the row: a medkit
-    tomesForSign: 2
-    // two or more tomes on the row: a sign of banishing
+    tomesForSpell: 2
+    // two or more tomes on the row: a page of black magic
   };
   var ENEMIES = {
     ghoul: { name: "Ghoul", hp: 12, dmg: [3, 5], hit: 75, range: 1, speed: 1, sight: 7, look: "ghoul" },
-    hound: { name: "Fen Hound", hp: 8, dmg: [2, 4], hit: 80, range: 1, speed: 2, sight: 9, look: "hound" },
-    cultist: { name: "Hooded Cultist", hp: 10, dmg: [2, 4], hit: 60, range: 4, speed: 1, sight: 7, look: "cultist", drops: "bullets" },
-    shade: { name: "Shade", hp: 14, dmg: [3, 6], hit: 70, range: 1, speed: 1, sight: 8, look: "shade", phase: true },
+    hound: { name: "Fen Hound", hp: 8, dmg: [2, 4], hit: 80, range: 1, speed: 2, sight: 9, look: "hound", role: "fast" },
+    cultist: { name: "Hooded Cultist", hp: 10, dmg: [2, 4], hit: 60, range: 5, speed: 1, sight: 8, look: "cultist", role: "ranged", drops: "bullets" },
+    shade: { name: "Shade", hp: 14, dmg: [3, 6], hit: 70, range: 1, speed: 1, sight: 8, look: "shade", role: "phase" },
     servant: { name: "Hollow Servant", hp: 18, dmg: [4, 6], hit: 75, range: 1, speed: 1, sight: 6, look: "servant" },
     drowned: { name: "Drowned One", hp: 22, dmg: [5, 7], hit: 75, range: 1, speed: 1, sight: 7, look: "drowned" },
-    mass: { name: "Crawling Mass", hp: 32, dmg: [6, 9], hit: 80, range: 1, speed: 1, sight: 5, look: "mass", slow: true },
-    priest: { name: "Cult Priest", hp: 16, dmg: [4, 6], hit: 65, range: 5, speed: 1, sight: 8, look: "priest", drops: "cartridges" },
-    // bosses guard the way out of each realm
-    stag: { name: "The Antlered Shepherd", hp: 70, dmg: [5, 8], hit: 80, range: 1, speed: 1, sight: 6, look: "stag", boss: true },
-    widow: { name: "The Widow in the Paper", hp: 95, dmg: [5, 8], hit: 75, range: 3, speed: 1, sight: 6, look: "widow", boss: true },
-    waiter: { name: "That Which Waits Below", hp: 140, dmg: [7, 10], hit: 80, range: 2, speed: 0, sight: 6, look: "waiter", boss: true }
+    mass: { name: "Crawling Mass", hp: 32, dmg: [6, 9], hit: 80, range: 1, speed: 1, sight: 6, look: "mass", role: "tank", slow: true },
+    priest: { name: "Cult Priest", hp: 14, dmg: [3, 5], hit: 65, range: 5, speed: 1, sight: 8, look: "priest", role: "heal", heal: 8, drops: "cartridges" },
+    // bosses guard the way out of each realm and call for help
+    stag: { name: "The Antlered Shepherd", hp: 70, dmg: [5, 8], hit: 80, range: 1, speed: 1, sight: 7, look: "stag", boss: true, role: "summon", summon: "hound", every: 4 },
+    widow: { name: "The Widow in the Paper", hp: 95, dmg: [5, 8], hit: 75, range: 4, speed: 1, sight: 7, look: "widow", boss: true, role: "summon", summon: "shade", every: 4 },
+    waiter: { name: "That Which Waits Below", hp: 140, dmg: [7, 10], hit: 80, range: 2, speed: 0, sight: 7, look: "waiter", boss: true, role: "summon", summon: "drowned", every: 3 }
   };
+  var ROLE_TAGS = { ranged: "RANGED", fast: "FAST", heal: "HEALER", tank: "BRUTE", phase: "PHASES", summon: "SUMMONER" };
+  var LOOT_EARLY = [["bullets", 5], ["medkit", 3], ["banish", 2], ["flame", 1], ["leech", 1], ["shells", 2]];
+  var LOOT_LATE = [["bullets", 4], ["shells", 3], ["cartridges", 2], ["medkit", 3], ["banish", 2], ["flame", 2], ["leech", 2], ["dread", 1]];
   var REALMS = [
     {
       id: "forest",
       name: "The Black Wood",
       sub: "Chapter I",
-      size: 9,
-      enemies: [["ghoul", 4], ["hound", 3], ["cultist", 2]],
-      count: 9,
+      size: 33,
+      roomMax: 11,
+      density: 0.38,
+      enemies: [["ghoul", 4], ["hound", 3], ["cultist", 2], ["priest", 1]],
       boss: "stag",
       chests: 4,
+      loot: LOOT_EARLY,
+      weapon: "shotgun",
+      weaponZone: 0,
       music: "calm",
       fog: [26, 20, 46],
-      fogDist: 7.5,
+      fogDist: 8,
       sky: true,
       deco: ["grave", "grave", "stump", "bones"],
+      light: "lamp",
       exit: "gate",
-      keys: ["brass", "bone"],
-      weaponChest: "rifle",
       intro: "The letter spoke of a manor beyond the wood. The trees lean closer as you walk."
     },
     {
       id: "mansion",
       name: "Ashcombe Manor",
       sub: "Chapter II",
-      size: 10,
-      enemies: [["shade", 3], ["servant", 3], ["cultist", 3], ["ghoul", 1]],
-      count: 11,
+      size: 35,
+      roomMax: 9,
+      density: 0.46,
+      enemies: [["shade", 3], ["servant", 3], ["cultist", 3], ["priest", 2], ["ghoul", 1]],
       boss: "widow",
       chests: 5,
+      loot: LOOT_LATE,
+      weapon: "rifle",
+      weaponZone: 1,
       music: "map",
       fog: [22, 10, 26],
-      fogDist: 7,
+      fogDist: 7.5,
       sky: false,
-      deco: ["candles", "candles", "armchair", "clock"],
+      deco: ["candles", "armchair", "clock"],
+      light: "candles",
       exit: "stairs",
-      keys: ["brass", "bone"],
       intro: "Every portrait in the hall has the same red eyes. The door locks behind you."
     },
     {
       id: "crypt",
       name: "The Crypt Beneath",
       sub: "Chapter III",
-      size: 11,
-      enemies: [["drowned", 3], ["mass", 2], ["priest", 3], ["ghoul", 2]],
-      count: 13,
+      size: 37,
+      roomMax: 13,
+      density: 0.5,
+      enemies: [["drowned", 3], ["mass", 2], ["priest", 2], ["cultist", 2], ["ghoul", 2]],
       boss: "waiter",
       chests: 5,
+      loot: LOOT_LATE,
       music: "title",
       fog: [8, 4, 10],
-      fogDist: 6,
+      fogDist: 6.5,
       sky: false,
-      deco: ["brazier", "bones", "bones", "brazier"],
+      deco: ["bones", "bones", "brazier"],
+      light: "brazier",
       exit: "seal",
-      keys: ["brass", "bone"],
       intro: "Below the manor the stone is wet and warm. Something vast is breathing."
     }
   ];
@@ -679,186 +743,271 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     }
     return { dist, prev };
   }
-  function generate(realm, rng) {
-    const N = realm.size, w = 2 * N + 1, h = 2 * N + 1;
+  function generate(realm, rng, tries = 0) {
+    const w = realm.size, h = realm.size;
     const tiles = new Uint8Array(w * h).fill(T.WALL);
     const at = (x, y) => tiles[y * w + x], set = (x, y, t) => {
       tiles[y * w + x] = t;
     };
     const map = { w, h, tiles, at, set };
-    const seen = new Uint8Array(N * N), stack = [[0, 0]];
-    seen[0] = 1;
-    set(1, 1, T.FLOOR);
-    while (stack.length) {
-      const [cx, cy] = stack[stack.length - 1];
-      const opts = DIRS.filter(([dx2, dy2]) => {
-        const nx2 = cx + dx2, ny2 = cy + dy2;
-        return nx2 >= 0 && ny2 >= 0 && nx2 < N && ny2 < N && !seen[ny2 * N + nx2];
-      });
-      if (!opts.length) {
-        stack.pop();
-        continue;
+    const rooms = [];
+    const split = (x0, y0, x1, y1, depth2) => {
+      const iw = x1 - x0 - 1, ih = y1 - y0 - 1;
+      const big = Math.max(iw, ih);
+      const stop = big <= realm.roomMax && (big <= 5 || rng.int(100) < 22 + depth2 * 6);
+      if (stop || iw < 7 && ih < 7) {
+        rooms.push({ x0: x0 + 1, y0: y0 + 1, x1: x1 - 1, y1: y1 - 1, id: rooms.length });
+        return;
       }
-      const [dx, dy] = rng.pick(opts), nx = cx + dx, ny = cy + dy;
-      seen[ny * N + nx] = 1;
-      set(2 * cx + 1 + dx, 2 * cy + 1 + dy, T.FLOOR);
-      set(2 * nx + 1, 2 * ny + 1, T.FLOOR);
-      stack.push([nx, ny]);
+      const vertical = iw > ih ? true : ih > iw ? false : rng.int(2) === 0;
+      const len = vertical ? iw : ih;
+      if (len < 7) {
+        rooms.push({ x0: x0 + 1, y0: y0 + 1, x1: x1 - 1, y1: y1 - 1, id: rooms.length });
+        return;
+      }
+      const cut = 3 + 1 + rng.int(len - 7 + 1);
+      if (vertical) {
+        split(x0, y0, x0 + cut, y1, depth2 + 1);
+        split(x0 + cut, y0, x1, y1, depth2 + 1);
+      } else {
+        split(x0, y0, x1, y0 + cut, depth2 + 1);
+        split(x0, y0 + cut, x1, y1, depth2 + 1);
+      }
+    };
+    split(0, 0, w - 1, h - 1, 0);
+    const roomOf = new Int16Array(w * h).fill(-1);
+    for (const r of rooms) for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+      set(x, y, T.FLOOR);
+      roomOf[y * w + x] = r.id;
     }
-    const corners = [[1, 1], [w - 2, 1], [1, h - 2], [w - 2, h - 2]], [sx, sy] = rng.pick(corners);
-    let { dist, prev } = bfs(map, sx, sy);
-    let far = 0;
-    for (let i = 0; i < dist.length; i++) if (dist[i] > dist[far]) far = i;
-    const ex = far % w, ey = far / w | 0;
-    const path = [];
-    for (let i = far; i >= 0; i = prev[i]) path.unshift(i);
-    const exitWalls = DIRS.map(([dx, dy]) => [ex + dx, ey + dy]).filter(([x, y]) => at(x, y) === T.WALL);
-    const [gx, gy] = rng.pick(exitWalls);
-    set(gx, gy, T.EXIT);
-    const gaps = path.map((i, k) => ({ i, k })).filter(({ i }) => (i % w + (i / w | 0)) % 2 === 1);
-    const lockAt = (f) => gaps[Math.min(gaps.length - 2, Math.max(1, Math.round(gaps.length * f)))].i;
-    const lock1 = lockAt(0.34), lock2 = lockAt(0.68);
-    tiles[lock1] = T.LOCK_BRASS;
-    tiles[lock2] = T.LOCK_BONE;
+    for (const r of rooms) {
+      r.area = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
+      r.cx = r.x0 + r.x1 >> 1;
+      r.cy = r.y0 + r.y1 >> 1;
+    }
+    const links = /* @__PURE__ */ new Map();
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      if (at(x, y) !== T.WALL) continue;
+      const pairs = [[roomOf[y * w + x - 1], roomOf[y * w + x + 1]], [roomOf[(y - 1) * w + x], roomOf[(y + 1) * w + x]]];
+      for (const [a, b] of pairs) {
+        if (a < 0 || b < 0 || a === b) continue;
+        const k = a < b ? a + "," + b : b + "," + a;
+        (links.get(k) || links.set(k, []).get(k)).push(y * w + x);
+      }
+    }
+    const edges = [...links.entries()].map(([k, t]) => {
+      const [a, b] = k.split(",").map(Number);
+      return { a, b, tiles: t };
+    });
+    const doorway = (e) => {
+      const mid = e.tiles.slice(1, -1);
+      return rng.pick(mid.length ? mid : e.tiles);
+    };
+    const parent = rooms.map((_, i) => i), find = (i) => parent[i] === i ? i : parent[i] = find(parent[i]);
+    const tree = [], adj = rooms.map(() => []);
+    for (const e of rng.shuffle(edges.slice())) {
+      const ra = find(e.a), rb = find(e.b);
+      if (ra === rb) continue;
+      parent[ra] = rb;
+      e.door = doorway(e);
+      tree.push(e);
+      adj[e.a].push(e);
+      adj[e.b].push(e);
+    }
+    const small = rooms.filter((r) => r.area <= 20), startRoom = rng.pick(small.length ? small : rooms);
+    const depth = new Int32Array(rooms.length).fill(-1), via = new Array(rooms.length).fill(null);
+    const order = [startRoom.id];
+    depth[startRoom.id] = 0;
+    for (let i = 0; i < order.length; i++) for (const e of adj[order[i]]) {
+      const o = e.a === order[i] ? e.b : e.a;
+      if (depth[o] < 0) {
+        depth[o] = depth[order[i]] + 1;
+        via[o] = e;
+        order.push(o);
+      }
+    }
+    let bossRoom = rooms[0];
+    for (const r of rooms) if (depth[r.id] * 100 + r.area > depth[bossRoom.id] * 100 + bossRoom.area && r.area >= 12) bossRoom = r;
+    const spine = [];
+    for (let r = bossRoom.id; via[r]; r = via[r].a === r ? via[r].b : via[r].a) spine.unshift(via[r]);
+    if (spine.length < 3 && tries < 20) return generate(realm, rng, tries + 1);
+    const lockEdge1 = spine[Math.max(0, Math.round(spine.length * 0.3) - 1)], lockEdge2 = spine[Math.max(1, Math.round(spine.length * 0.66))] || spine[spine.length - 1];
+    const zoneOfRoom = new Int8Array(rooms.length).fill(-1);
+    const fill = (start, z) => {
+      const q = [start];
+      zoneOfRoom[start] = z;
+      for (let i = 0; i < q.length; i++) for (const e of adj[q[i]]) {
+        if (e === lockEdge1 || e === lockEdge2) continue;
+        const o = e.a === q[i] ? e.b : e.a;
+        if (zoneOfRoom[o] < 0) {
+          zoneOfRoom[o] = z;
+          q.push(o);
+        }
+      }
+    };
+    fill(startRoom.id, 0);
+    const far = (e) => zoneOfRoom[e.a] < 0 ? e.a : e.b;
+    const entry1 = far(lockEdge1);
+    fill(entry1, 1);
+    fill(far(lockEdge2), 2);
+    for (const e of tree) set(e.door % w, e.door / w | 0, T.FLOOR);
+    tiles[lockEdge1.door] = T.LOCK_BRASS;
+    tiles[lockEdge2.door] = T.LOCK_BONE;
+    for (const e of edges) {
+      if (e.door !== void 0 || zoneOfRoom[e.a] !== zoneOfRoom[e.b] || rng.int(100) >= 45) continue;
+      e.door = doorway(e);
+      set(e.door % w, e.door / w | 0, T.FLOOR);
+      e.loop = true;
+    }
+    for (const e of edges) {
+      if (e.door === void 0 || e.door === lockEdge1.door || e.door === lockEdge2.door || realm.id === "mansion" || rng.int(100) >= 50) continue;
+      const i = e.tiles.indexOf(e.door), nb = e.tiles[i + 1] ?? e.tiles[i - 1];
+      if (nb !== void 0) tiles[nb] = T.FLOOR;
+    }
+    const doorChance = realm.id === "mansion" ? 75 : realm.id === "crypt" ? 30 : 0;
+    for (const e of edges) if (e.door !== void 0 && tiles[e.door] === T.FLOOR && rng.int(100) < doorChance) {
+      const x = e.door % w, y = e.door / w | 0;
+      const ns2 = at(x - 1, y) === T.WALL && at(x + 1, y) === T.WALL, ew = at(x, y - 1) === T.WALL && at(x, y + 1) === T.WALL;
+      if (ns2 || ew) set(x, y, T.DOOR);
+    }
     const zone = new Int8Array(w * h).fill(-1);
-    const fillZone = (x, y, z) => {
-      const r = bfs(map, x, y, (nx, ny, t) => t === T.LOCK_BRASS || t === T.LOCK_BONE || zone[ny * w + nx] >= 0);
-      for (let i = 0; i < r.dist.length; i++) if (r.dist[i] >= 0 && zone[i] < 0) zone[i] = z;
+    for (let i = 0; i < w * h; i++) if (roomOf[i] >= 0) zone[i] = zoneOfRoom[roomOf[i]];
+    for (const e of edges) if (e.door !== void 0) zone[e.door] = Math.max(zoneOfRoom[e.a], zoneOfRoom[e.b]);
+    for (const r of rooms) {
+      if (r.area < 35 || r === startRoom) continue;
+      const step2 = realm.id === "forest" ? 3 : 4;
+      for (let y = r.y0 + 2; y <= r.y1 - 2; y += step2) for (let x = r.x0 + 2; x <= r.x1 - 2; x += step2) {
+        if (rng.int(100) < (realm.id === "forest" ? 55 : 80)) set(x, y, T.WALL);
+      }
+    }
+    const isGap = (i) => tiles[i] !== T.WALL && roomOf[i] < 0;
+    const edgeWalls = [];
+    for (let x = bossRoom.x0; x <= bossRoom.x1; x++) for (const y of [bossRoom.y0 - 1, bossRoom.y1 + 1]) edgeWalls.push([x, y, 0, y < bossRoom.y0 ? 1 : -1]);
+    for (let y = bossRoom.y0; y <= bossRoom.y1; y++) for (const x of [bossRoom.x0 - 1, bossRoom.x1 + 1]) edgeWalls.push([x, y, x < bossRoom.x0 ? 1 : -1, 0]);
+    const solid = edgeWalls.filter(([x, y]) => at(x, y) === T.WALL && !DIRS.some(([dx, dy]) => isGap((y + dy) * w + x + dx)));
+    const outer = solid.filter(([x, y]) => x === 0 || y === 0 || x === w - 1 || y === h - 1);
+    const [gx, gy, gdx, gdy] = rng.pick(outer.length ? outer : solid);
+    set(gx, gy, T.EXIT);
+    const ex = gx + gdx, ey = gy + gdy;
+    if (at(ex, ey) === T.WALL) set(ex, ey, T.FLOOR);
+    const { dist } = bfs(map, startRoom.cx, startRoom.cy);
+    const used = /* @__PURE__ */ new Set([startRoom.cy * w + startRoom.cx, ey * w + ex]);
+    const nearDoor = (i) => DIRS.some(([dx, dy]) => isGap(i + dy * w + dx)) || isGap(i);
+    const floorIn = (r, pred = () => true) => {
+      const out = [];
+      for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+        const i = y * w + x;
+        if (tiles[i] === T.FLOOR && !used.has(i) && pred(i)) out.push(i);
+      }
+      return out;
     };
-    fillZone(sx, sy, 0);
-    const beyond = (lk) => {
-      for (const [dx, dy] of DIRS) {
-        const j = lk + dy * w + dx;
-        if (tiles[j] === T.FLOOR && zone[j] < 0) return j;
-      }
-      return -1;
-    };
-    const b1 = beyond(lock1);
-    fillZone(b1 % w, b1 / w | 0, 1);
-    zone[lock1] = 1;
-    const b2 = beyond(lock2);
-    fillZone(b2 % w, b2 / w | 0, 2);
-    zone[lock2] = 2;
-    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-      if (at(x, y) !== T.WALL || (x + y) % 2 === 0) continue;
-      const horiz = x % 2 === 0;
-      const a = horiz ? y * w + x - 1 : (y - 1) * w + x, b = horiz ? y * w + x + 1 : (y + 1) * w + x;
-      if (zone[a] >= 0 && zone[a] === zone[b] && rng.int(100) < 11) {
-        set(x, y, T.FLOOR);
-        zone[y * w + x] = zone[a];
-      }
-    }
-    for (let r = 0; r < Math.floor(N / 3); r++) {
-      const cx = rng.int(N - 1), cy = rng.int(N - 1), x0 = 2 * cx + 1, y0 = 2 * cy + 1, z = zone[y0 * w + x0];
-      let ok = z >= 0;
-      for (let y = y0; y <= y0 + 2 && ok; y++) for (let x = x0; x <= x0 + 2; x++) {
-        const t = at(x, y);
-        if (t === T.LOCK_BRASS || t === T.LOCK_BONE) ok = false;
-        if (x % 2 === 1 && y % 2 === 1 && zone[y * w + x] !== z) ok = false;
-      }
-      if (!ok) continue;
-      for (let y = y0; y <= y0 + 2; y++) for (let x = x0; x <= x0 + 2; x++) if (at(x, y) === T.WALL) {
-        set(x, y, T.FLOOR);
-        zone[y * w + x] = z;
-      }
-    }
-    const doorChance = realm.id === "forest" ? 0 : realm.id === "mansion" ? 30 : 14;
-    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-      if (at(x, y) !== T.FLOOR || (x + y) % 2 === 0) continue;
-      const ns2 = at(x, y - 1) === T.WALL && at(x, y + 1) === T.WALL && at(x - 1, y) === T.FLOOR && at(x + 1, y) === T.FLOOR;
-      const ew = at(x - 1, y) === T.WALL && at(x + 1, y) === T.WALL && at(x, y - 1) === T.FLOOR && at(x, y + 1) === T.FLOOR;
-      if ((ns2 || ew) && rng.int(100) < doorChance && Math.abs(x - sx) + Math.abs(y - sy) > 2) set(x, y, T.DOOR);
-    }
-    ({ dist } = bfs(map, sx, sy, (x, y, t) => false));
-    const used = /* @__PURE__ */ new Set([sy * w + sx, ey * w + ex]);
-    const cells = [];
-    for (let y = 1; y < h; y += 2) for (let x = 1; x < w; x += 2) if (at(x, y) === T.FLOOR) cells.push(y * w + x);
-    const deadEnd = (i) => DIRS.filter(([dx, dy]) => tiles[i + dy * w + dx] !== T.WALL).length === 1;
-    const free = (z, pred = () => true) => cells.filter((i) => zone[i] === z && !used.has(i) && pred(i));
+    const againstWall = (i) => DIRS.filter(([dx, dy]) => tiles[i + dy * w + dx] === T.WALL).length >= 1;
     const take = (i) => {
       used.add(i);
       return { x: i % w, y: i / w | 0 };
     };
-    const farthest = (list, from) => list.sort((a, b) => manh(b, from, w) - manh(a, from, w))[0];
+    const blockedByChest = /* @__PURE__ */ new Set();
     const reachCount = () => {
-      const r = bfs(map, sx, sy, (x, y) => blockedByChest.has(y * w + x));
+      const r = bfs(map, startRoom.cx, startRoom.cy, (x, y) => blockedByChest.has(y * w + x));
       let n = 0;
       for (const d of r.dist) if (d >= 0) n++;
       return n;
     };
-    const blockedByChest = /* @__PURE__ */ new Set();
     let reachable = reachCount();
     const safe = (i) => {
-      if (deadEnd(i)) return true;
       blockedByChest.add(i);
       const ok = reachCount() === reachable - 1;
       blockedByChest.delete(i);
       return ok;
     };
-    const chests = [];
+    const chests = [], pickups = [];
+    const chestSpot = (r) => {
+      const c = floorIn(r, (i) => againstWall(i) && !nearDoor(i));
+      rng.shuffle(c);
+      return c.find(safe);
+    };
     const chestAt2 = (i, holds) => {
       const p = take(i);
       chests.push({ ...p, holds, open: false });
       blockedByChest.add(i);
       reachable--;
     };
-    const prefer = (list) => {
-      const d = list.filter(deadEnd);
-      return d.length ? d : list.filter(safe);
+    const roomsIn = (z) => rooms.filter((r) => zoneOfRoom[r.id] === z && r !== startRoom && r !== bossRoom);
+    const farthestRoom = (list, from) => list.slice().sort((a, b) => Math.abs(b.cx - from.cx) + Math.abs(b.cy - from.cy) - (Math.abs(a.cx - from.cx) + Math.abs(a.cy - from.cy)));
+    const placeKey = (z, key2, from) => {
+      for (const r2 of farthestRoom(roomsIn(z).length ? roomsIn(z) : rooms.filter((r3) => zoneOfRoom[r3.id] === z), from)) {
+        const i = chestSpot(r2);
+        if (i !== void 0) return chestAt2(i, key2);
+      }
+      const r = rooms.find((r2) => zoneOfRoom[r2.id] === z), f = floorIn(r);
+      pickups.push({ ...take(f[0]), kind: key2 });
     };
-    const pickups = [];
-    const keyAt = (list, from, key2) => {
-      const c = prefer(list);
-      if (c.length) return chestAt2(farthest(c, from), key2);
-      const any = list.length ? list : cells.filter((i) => zone[i] === (key2 === "brass" ? 0 : 1));
-      const p = take(farthest(any, from));
-      pickups.push({ ...p, kind: key2 });
-    };
-    keyAt(free(0, (i) => dist[i] >= 4).length ? free(0, (i) => dist[i] >= 4) : free(0), sy * w + sx, "brass");
-    keyAt(free(1), lock1, "bone");
-    if (realm.weaponChest) {
-      const c = free(1).concat(free(2)).filter(deadEnd);
-      if (c.length) chestAt2(rng.pick(c), realm.weaponChest);
-    }
-    for (let k = 0; k < realm.chests; k++) {
-      const pool = free(k % 3).filter(deadEnd);
-      if (pool.length) chestAt2(rng.pick(pool), null);
+    placeKey(0, "brass", startRoom);
+    placeKey(1, "bone", rooms[entry1]);
+    for (const r of rng.shuffle(rooms.filter((r2) => r2 !== startRoom))) {
+      if (chests.length >= realm.chests + 2) break;
+      if (rng.int(100) < 45 + r.area) {
+        const i = chestSpot(r);
+        if (i !== void 0) chestAt2(i, null);
+      }
     }
     const enemies = [];
-    const types = realm.enemies.map(([k, wgt]) => [k, wgt]);
-    for (let k = 0; k < realm.count; k++) {
-      const z = k < realm.count * 0.3 ? 0 : k < realm.count * 0.65 ? 1 : 2;
-      const pool = free(z, (i) => dist[i] >= 5 && !enemies.some((e) => Math.abs(e.x - i % w) + Math.abs(e.y - (i / w | 0)) < 3));
-      if (!pool.length) continue;
-      const p = take(rng.pick(pool)), type = rng.weighted(types);
-      enemies.push(makeEnemy(type, p.x, p.y, k));
+    let id = 0;
+    for (const r of rooms) {
+      if (r === startRoom) continue;
+      const z = zoneOfRoom[r.id];
+      const n = Math.min(5, Math.floor(r.area / 16 * realm.density * (0.7 + z * 0.3) + rng.float() * 0.9));
+      for (let k = 0; k < n; k++) {
+        const pool = floorIn(r, (i) => dist[i] >= 4 && !nearDoor(i));
+        if (!pool.length) break;
+        const p = take(rng.pick(pool));
+        enemies.push(makeEnemy(rng.weighted(realm.enemies), p.x, p.y, id++));
+      }
     }
     enemies.push(makeEnemy(realm.boss, ex, ey, 99));
-    for (let k = 0; k < 3 + (N >> 2); k++) {
-      const pool = free(k % 3, (i) => dist[i] >= 2);
-      if (!pool.length) continue;
-      const p = take(rng.pick(pool));
-      pickups.push({ ...p, kind: rng.pick(["bullets", "bullets", "medkit"]) });
+    const loot = realm.loot;
+    for (const r of rooms) {
+      const n = rng.int(100) < 25 + r.area ? 1 + (r.area > 30 ? rng.int(2) : 0) : 0;
+      for (let k = 0; k < n; k++) {
+        const pool = floorIn(r, (i) => !nearDoor(i));
+        if (!pool.length) break;
+        pickups.push({ ...take(rng.pick(pool)), kind: rng.weighted(loot) });
+      }
+    }
+    if (realm.weapon) {
+      const rs = roomsIn(realm.weaponZone ?? 1);
+      const r = rs.length ? rng.pick(rs) : startRoom, pool = floorIn(r, (i) => !nearDoor(i));
+      if (pool.length) pickups.push({ ...take(rng.pick(pool)), kind: realm.weapon });
     }
     const decos = [];
-    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x;
-      if (at(x, y) !== T.FLOOR || used.has(i) || i === sy * w + sx || rng.int(100) >= 9) continue;
-      if ((x + y) % 2 === 1) continue;
+    for (const r of rooms) {
+      const spots = floorIn(r, (i) => againstWall(i) && !nearDoor(i));
+      if (spots.length) {
+        const i = rng.pick(spots);
+        used.add(i);
+        decos.push({ x: i % w, y: i / w | 0, kind: realm.light });
+      }
+    }
+    for (const r of rooms) for (const i of floorIn(r, (i2) => !nearDoor(i2))) if (rng.int(100) < (againstWall(i) ? 9 : 3)) {
       used.add(i);
-      decos.push({ x, y, kind: rng.pick(realm.deco) });
+      decos.push({ x: i % w, y: i / w | 0, kind: rng.pick(realm.deco) });
     }
-    let dir = 0;
-    for (let d = 0; d < 4; d++) if (at(sx + DIRS[d][0], sy + DIRS[d][1]) !== T.WALL) {
-      dir = d;
-      break;
+    const sx = startRoom.cx, sy = startRoom.cy;
+    const dir = [0, 1, 2, 3].sort((a, b) => run(b) - run(a))[0];
+    function run(d) {
+      let n = 0, x = sx, y = sy;
+      while (at(x + DIRS[d][0], y + DIRS[d][1]) !== T.WALL && n < 20) {
+        x += DIRS[d][0];
+        y += DIRS[d][1];
+        n++;
+      }
+      return n;
     }
-    return { ...map, zone, start: { x: sx, y: sy, dir }, exit: { x: gx, y: gy, cx: ex, cy: ey }, locks: [lock1, lock2], chests, enemies, pickups, decos };
+    return { ...map, zone, rooms, roomOf, start: { x: sx, y: sy, dir }, exit: { x: gx, y: gy, cx: ex, cy: ey }, locks: [lockEdge1.door, lockEdge2.door], chests, enemies, pickups, decos };
   }
-  var manh = (a, b, w) => Math.abs(a % w - b % w) + Math.abs((a / w | 0) - (b / w | 0));
   function makeEnemy(type, x, y, id) {
     const d = ENEMIES[type];
-    return { id, type, x, y, hp: d.hp, maxHp: d.hp, awake: !!d.boss && false, stun: 0, tick: 0, dead: false, fx: { hurt: 0, atk: 0, die: 0 } };
+    return { id, type, x, y, hp: d.hp, maxHp: d.hp, awake: false, stun: 0, tick: 0, dead: false, fx: { hurt: 0, atk: 0, die: 0 } };
   }
 
   // src/world/game.js
@@ -870,12 +1019,14 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       maxHp: HERO.hp,
       medkits: HERO.startMedkits,
       bullets: HERO.startBullets,
-      cartridges: HERO.startCartridges,
-      signs: HERO.startSigns,
+      shells: 0,
+      cartridges: 0,
+      spells: { banish: 1, flame: 0, leech: 0, dread: 0 },
       ward: 0,
       hone: 0,
       weapon: "revolver",
-      weapons: { sabre: true, revolver: true, rifle: false },
+      weapons: { sabre: true, revolver: true, shotgun: false, rifle: false },
+      target: null,
       stats: { kills: 0, chests: 0, spins: 0, dealt: 0, taken: 0, steps: 0 },
       level: null,
       turn: 0,
@@ -927,33 +1078,47 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     return true;
   }
   function reveal(run) {
-    const L = run.level, p = L.player, R2 = 3;
+    const L = run.level, p = L.player, R2 = 9;
     for (let y = p.y - R2; y <= p.y + R2; y++) for (let x = p.x - R2; x <= p.x + R2; x++) {
       if (x < 0 || y < 0 || x >= L.w || y >= L.h) continue;
       if (lineOfSight(L, p.x, p.y, x, y)) L.seen[y * L.w + x] = 1;
     }
   }
-  function lookAhead(L, n) {
-    const p = L.player, [dx, dy] = DIRS[p.dir];
-    for (let k = 1; k <= n; k++) {
-      const x = p.x + dx * k, y = p.y + dy * k;
-      const e = enemyAt(L, x, y);
-      if (e) return { enemy: e, dist: k };
-      const c = chestAt(L, x, y);
-      if (c) return { chest: c, dist: k };
-      if (opaque(L, x, y)) return null;
-    }
-    return null;
-  }
   var weapon = (run) => WEAPONS[run.weapon];
   var ammoOf = (run, w = run.weapon) => WEAPONS[w].ammo ? run[WEAPONS[w].ammo] : Infinity;
+  var reach = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+  function inView(L, e, max = 10) {
+    const p = L.player, [fx, fy] = DIRS[p.dir], dx = e.x - p.x, dy = e.y - p.y;
+    const fwd = dx * fx + dy * fy, side = Math.abs(dx * fy - dy * fx);
+    if (fwd <= 0 || side > fwd || reach(p, e) > max) return false;
+    if (reach(p, e) === 1 && side === 1 && opaque(L, p.x + fx, p.y + fy) && opaque(L, e.x - fx, e.y - fy)) return false;
+    return lineOfSight(L, p.x, p.y, e.x, e.y);
+  }
+  function targets(run, range = weapon(run).range) {
+    const L = run.level, p = L.player;
+    return L.enemies.filter((e) => !e.dead && inView(L, e, range)).sort((a, b) => reach(p, a) - reach(p, b) || a.id - b.id);
+  }
+  function currentTarget(run, range) {
+    const list = targets(run, range), t = list.find((e) => e.id === run.target) || list[0] || null;
+    run.target = t ? t.id : run.target;
+    return t;
+  }
+  function cycleTarget(run) {
+    const list = targets(run);
+    if (!list.length) return null;
+    const i = list.findIndex((e) => e.id === run.target), t = list[(i + 1) % list.length];
+    run.target = t.id;
+    return t;
+  }
+  function setTarget(run, e) {
+    run.target = e ? e.id : null;
+  }
   function attackTarget(run) {
-    const W = weapon(run), L = run.level;
-    if (ammoOf(run) <= 0) return { why: `No ammunition for the ${W.name.toLowerCase()}.` };
-    const a = lookAhead(L, W.range);
-    if (a && a.enemy) return { enemy: a.enemy, dist: a.dist };
-    const far = lookAhead(L, 9);
-    if (far && far.enemy) return { why: `Out of range for the ${W.name.toLowerCase()}.` };
+    const W = weapon(run);
+    if (ammoOf(run) <= 0) return { why: `No ${AMMO_NAMES[W.ammo]} for the ${W.name.toLowerCase()}.` };
+    const t = currentTarget(run);
+    if (t) return { enemy: t, dist: reach(run.level.player, t) };
+    if (targets(run, 10).length) return { why: `Out of reach for the ${W.name.toLowerCase()}.` };
     return { why: "Nothing to strike." };
   }
   function chestAhead(run) {
@@ -961,10 +1126,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     return c && !c.open ? c : null;
   }
   function cycleWeapon(run) {
-    const i = WEAPON_ORDER.indexOf(run.weapon);
-    for (let k = 1; k <= 3; k++) {
-      const w = WEAPON_ORDER[(i + k) % 3];
-      if (run.weapons[w]) {
+    const i = WEAPON_ORDER.indexOf(run.weapon), n = WEAPON_ORDER.length;
+    for (let k = 1; k <= n; k++) {
+      const w = WEAPON_ORDER[(i + k) % n];
+      if (run.weapons[w] && (ammoOf(run, w) > 0 || k === n)) {
         run.weapon = w;
         return w;
       }
@@ -981,6 +1146,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     const L = run.level, p = L.player, d = (p.dir + rel) % 4, [dx, dy] = DIRS[d], nx = p.x + dx, ny = p.y + dy;
     const t = tileAt(L, nx, ny), ev = [];
     if (t === T.EXIT) {
+      if (p.x !== L.exit.cx || p.y !== L.exit.cy) return { ev: [{ type: "msg", text: "A way out, but not from this side." }], blocked: true };
       const boss = L.enemies.find((e2) => ENEMIES[e2.type].boss);
       if (boss && !boss.dead) return { ev: [{ type: "msg", text: "Not while the guardian lives." }], blocked: true };
       return { ev: [{ type: "exit" }], exit: true };
@@ -1004,30 +1170,55 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     p.y = ny;
     run.stats.steps++;
     ev.push({ type: "move" });
-    const pk = L.pickups.findIndex((k) => k.x === nx && k.y === ny);
-    if (pk >= 0) {
-      const k = L.pickups.splice(pk, 1)[0];
+    for (const k of L.pickups.filter((k2) => k2.x === nx && k2.y === ny)) {
+      L.pickups.splice(L.pickups.indexOf(k), 1);
       ev.push(takePickup(run, k));
     }
     reveal(run);
     return { ev: ev.concat(endTurn(run)) };
   }
+  var PICKUP = {
+    medkit: (run) => {
+      run.medkits++;
+      return ["A medkit.", "heal"];
+    },
+    bullets: (run, n = 6) => {
+      run.bullets += n;
+      return [`${n} revolver rounds.`, "coin"];
+    },
+    shells: (run, n = 4) => {
+      run.shells += n;
+      return [`${n} shotgun shells.`, "coin"];
+    },
+    cartridges: (run, n = 2) => {
+      run.cartridges += n;
+      return [`${n} rifle cartridges.`, "coin"];
+    },
+    shotgun: (run) => {
+      const had = run.weapons.shotgun;
+      run.weapons.shotgun = true;
+      run.shells += 6;
+      if (!had) run.weapon = "shotgun";
+      return [had ? "6 shotgun shells." : "A coach gun! Two barrels, wide spread.", had ? "coin" : "winBig", !had];
+    },
+    rifle: (run) => {
+      const had = run.weapons.rifle;
+      run.weapons.rifle = true;
+      run.cartridges += 4;
+      return [had ? "4 rifle cartridges." : "An elephant rifle! It reaches across any room.", had ? "coin" : "winBig", !had];
+    }
+  };
+  for (const k of SPELL_ORDER) PICKUP[k] = (run) => {
+    run.spells[k]++;
+    return [`A page of black magic: ${SPELLS[k].name}.`, "curse"];
+  };
   function takePickup(run, k) {
     if (k.kind === "brass" || k.kind === "bone") {
       run.level.keys[k.kind] = true;
       return { type: "key", key: k.kind, text: `The ${KEY_NAMES[k.kind].toLowerCase()}!` };
     }
-    if (k.kind === "medkit") {
-      run.medkits++;
-      return { type: "loot", text: "A medkit.", sfx: "heal" };
-    }
-    if (k.kind === "cartridges") {
-      run.cartridges += k.n || 2;
-      return { type: "loot", text: `${k.n || 2} rifle cartridges.`, sfx: "coin" };
-    }
-    const n = k.n || 6;
-    run.bullets += n;
-    return { type: "loot", text: `${n} revolver rounds.`, sfx: "coin" };
+    const [text2, sfx, big] = (PICKUP[k.kind] || PICKUP.bullets)(run, k.n);
+    return { type: big ? "weapon" : "loot", text: text2, sfx };
   }
   function useMedkit(run) {
     if (run.medkits <= 0) return { ev: [{ type: "msg", text: "No medkits left." }, { type: "sfx", name: "error" }], blocked: true };
@@ -1037,13 +1228,29 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     run.hp += h;
     return { ev: [{ type: "heal", n: h }, { type: "msg", text: `Bandaged. +${h} health.` }].concat(endTurn(run)) };
   }
-  function castSign(run) {
-    if (run.signs <= 0) return { ev: [{ type: "msg", text: "You know no more signs." }, { type: "sfx", name: "error" }], blocked: true };
-    const L = run.level, t = nearestVisible(run, 6);
-    if (!t) return { ev: [{ type: "msg", text: "There is nothing to banish." }], blocked: true };
-    run.signs--;
-    const ev = [{ type: "sign", enemy: t }];
-    ev.push(...hurt(run, t, SIGN_DAMAGE));
+  function castSpell(run, key2) {
+    const S2 = SPELLS[key2], L = run.level;
+    if (!run.spells[key2]) return { ev: [{ type: "msg", text: `You know no ${S2.name}.` }, { type: "sfx", name: "error" }], blocked: true };
+    const hit = S2.all ? targets(run, 8) : [currentTarget(run, 8)].filter(Boolean);
+    if (!hit.length) return { ev: [{ type: "msg", text: "Nothing in sight to curse." }], blocked: true };
+    run.spells[key2]--;
+    const ev = [{ type: "spell", key: key2, text: S2.name + "." }];
+    for (const e of hit) {
+      if (S2.stun) {
+        e.stun = Math.max(e.stun, S2.stun);
+        e.awake = true;
+        ev.push({ type: "stunned", enemy: e });
+      }
+      if (S2.dmg) {
+        const before = e.hp;
+        ev.push(...hurt(run, e, S2.dmg));
+        if (S2.leech) {
+          const h = Math.min(run.maxHp - run.hp, before - Math.max(0, e.hp));
+          run.hp += h;
+          if (h) ev.push({ type: "heal", n: h });
+        }
+      }
+    }
     return { ev: ev.concat(endTurn(run)) };
   }
   function nearestVisible(run, range) {
@@ -1051,7 +1258,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     let best = null, bd = 1e9;
     for (const e of L.enemies) {
       if (e.dead) continue;
-      const d = Math.abs(e.x - p.x) + Math.abs(e.y - p.y);
+      const d = reach(p, e);
       if (d <= range && d < bd && lineOfSight(L, p.x, p.y, e.x, e.y)) {
         best = e;
         bd = d;
@@ -1108,8 +1315,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     return fx;
   }
   function freeSpinTarget(run, prev) {
-    if (prev && !prev.dead && lineOfSight(run.level, run.level.player.x, run.level.player.y, prev.x, prev.y)) return prev;
-    return nearestVisible(run, 9);
+    if (prev && !prev.dead && inView(run.level, prev, 10)) return prev;
+    return currentTarget(run, 10) || nearestVisible(run, 9);
   }
   function resolveAttack(run, res, target) {
     const fx = strikeOf(run, res), ev = [{ type: "strike", fx, enemy: target, weapon: run.weapon, kind: res.kind }];
@@ -1123,27 +1330,32 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     }
     if (target && !target.dead) {
       if (fx.stun) target.stun = Math.max(target.stun, fx.stun);
+      const W = weapon(run), around = W.spread && fx.dmg > 0 ? run.level.enemies.filter((e) => !e.dead && e !== target && reach(e, target) === 1) : [];
       if (fx.dmg > 0) ev.push(...hurt(run, target, fx.dmg));
       else ev.push({ type: "miss", enemy: target });
+      for (const e of around) ev.push(...hurt(run, e, Math.round(fx.dmg * W.spread)));
     }
     const frozen = res.kind === "free" || res.freeAward > 0 || !!res.hold;
     if (!frozen) ev.push(...endTurn(run));
     else if (res.freeAward) ev.push({ type: "msg", text: `Blood moon! ${res.freeAward} free spins. The dark holds still.` });
     return { ev, fx };
   }
-  function lootOf(res) {
-    const o = res.outcome, row = o.grid[1], L = { bullets: 0, medkits: 0, ward: 0, maxHp: 0, signs: 0, hone: 0, cartridges: 0 };
+  function lootOf(res, run) {
+    const o = res.outcome, row = o.grid[1], L = { bullets: 0, shells: 0, medkits: 0, ward: 0, maxHp: 0, banish: 0, flame: 0, hone: 0, cartridges: 0 };
     const cnt = (k) => row.filter((s) => s === k).length;
     L.bullets += cnt("fire") * CHEST.bulletsPerGun;
     L.ward += cnt("shield") * CHEST.wardPerLantern;
     if (cnt("flask") >= CHEST.flasksForMedkit) L.medkits++;
-    if (cnt("tome") >= CHEST.tomesForSign) L.signs++;
+    if (cnt("tome") >= CHEST.tomesForSpell) L.flame++;
     for (const w of o.wins) {
-      if (w.sym === "fire") L.bullets += CHEST.bulletLine[w.n];
+      if (w.sym === "fire") {
+        L.bullets += CHEST.bulletLine[w.n];
+        if (run && run.weapons.shotgun) L.shells += CHEST.shellLine[w.n];
+      }
       if (w.sym === "flask") L.medkits += CHEST.medkitLine[w.n];
       if (w.sym === "shield") L.ward += CHEST.wardLine[w.n];
       if (w.sym === "crown") L.maxHp += CHEST.hpLine[w.n];
-      if (w.sym === "tome") L.signs += CHEST.signLine[w.n];
+      if (w.sym === "tome") L.banish += CHEST.spellLine[w.n];
       if (w.sym === "sword") L.hone += CHEST.honeLine[w.n];
     }
     L.cartridges += o.coins * CHEST.silverPerObol + (res.hold ? res.hold.coins * CHEST.silverPerObol : 0);
@@ -1151,15 +1363,17 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   }
   var LOOT_TEXT = {
     bullets: (n) => `${n} rounds`,
+    shells: (n) => `${n} shells`,
     cartridges: (n) => `${n} cartridges`,
     medkits: (n) => `${n} medkit${n > 1 ? "s" : ""}`,
     ward: (n) => `ward +${n}`,
     maxHp: (n) => `max health +${n}`,
-    signs: (n) => `${n} sign${n > 1 ? "s" : ""} of banishing`,
+    banish: (n) => `${n} sign${n > 1 ? "s" : ""} of banishing`,
+    flame: (n) => `${n} black flame${n > 1 ? "s" : ""}`,
     hone: (n) => `sabre +${n}`
   };
   function resolveChest(run, res, chest2, first) {
-    const loot = lootOf(res), ev = [], got = [];
+    const loot = lootOf(res, run), ev = [], got = [];
     run.stats.spins++;
     if (first) {
       chest2.open = true;
@@ -1169,11 +1383,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
         L.keys[chest2.holds] = true;
         ev.push({ type: "key", key: chest2.holds, text: `The ${KEY_NAMES[chest2.holds].toLowerCase()}!` });
       }
-      if (chest2.holds === "rifle") {
-        run.weapons.rifle = true;
-        run.cartridges += 4;
-        ev.push({ type: "weapon", text: "An elephant rifle, and 4 cartridges!" });
-      }
+      if (PICKUP[chest2.holds]) ev.push(takePickup(run, { kind: chest2.holds }));
     }
     for (const k in loot) {
       const n = loot[k];
@@ -1181,7 +1391,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       if (k === "maxHp") {
         run.maxHp += n;
         run.hp += n;
-      } else run[k] += n;
+      } else if (SPELLS[k]) run.spells[k] += n;
+      else run[k] += n;
       got.push(LOOT_TEXT[k](n));
     }
     ev.push({ type: "loot", text: got.length ? "Found " + got.join(", ") + "." : first && chest2.holds ? "Nothing else but dust." : "Dust and old bones.", loot });
@@ -1191,13 +1402,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     const L = run.level, p = L.player, ev = [], rng = metaRng(L);
     run.turn++;
     for (const k in L.doors) if (L.doors[k] > 0) L.doors[k] = Math.max(L.doors[k], 1);
-    for (const e of L.enemies) {
+    for (const e of L.enemies.slice()) {
       if (e.dead) continue;
-      const D = ENEMIES[e.type], d = Math.abs(e.x - p.x) + Math.abs(e.y - p.y);
-      if (!e.awake && d <= D.sight && lineOfSight(L, e.x, e.y, p.x, p.y)) {
-        e.awake = true;
-        ev.push({ type: "wake", enemy: e });
-      }
+      const D = ENEMIES[e.type];
+      if (!e.awake && reach(e, p) <= D.sight && lineOfSight(L, e.x, e.y, p.x, p.y)) wake(L, e, ev);
       if (!e.awake) continue;
       if (e.stun > 0) {
         e.stun--;
@@ -1205,6 +1413,22 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
         continue;
       }
       e.tick++;
+      if (D.summon && e.tick % D.every === 0 && (e.summoned || 0) < 5) {
+        const m = summon(L, e, D.summon);
+        if (m) {
+          ev.push({ type: "summon", enemy: e, minion: m, text: `${D.name} calls out of the dark.` });
+          continue;
+        }
+      }
+      if (D.heal) {
+        const hurtAlly = L.enemies.filter((o) => !o.dead && o !== e && o.hp <= o.maxHp - 4 && reach(o, e) <= 6 && lineOfSight(L, e.x, e.y, o.x, o.y)).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+        if (hurtAlly && rng.int(100) < 70) {
+          const n = Math.min(D.heal, hurtAlly.maxHp - hurtAlly.hp);
+          hurtAlly.hp += n;
+          ev.push({ type: "enemyHeal", enemy: e, ally: hurtAlly, n });
+          continue;
+        }
+      }
       if (canStrike(L, e, D)) {
         ev.push(enemyAttack(run, e, D, rng));
         if (run.hp <= 0) break;
@@ -1215,11 +1439,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
         if (canStrike(L, e, D)) break;
         const nxt = pathStep(L, e, D);
         if (!nxt) break;
-        e.px = e.x;
-        e.py = e.y;
         e.x = nxt.x;
         e.y = nxt.y;
-        e.moved = performance_now();
       }
     }
     run.block = 0;
@@ -1229,16 +1450,37 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     }
     return ev;
   }
-  var performance_now = () => typeof performance !== "undefined" ? performance.now() : 0;
+  function wake(L, e, ev) {
+    const room = L.roomOf ? L.roomOf[e.y * L.w + e.x] : -1;
+    for (const o of L.enemies) {
+      if (o.dead || o.awake) continue;
+      if (o === e || room >= 0 && L.roomOf[o.y * L.w + o.x] === room) {
+        o.awake = true;
+        ev.push({ type: "wake", enemy: o });
+      }
+    }
+  }
+  function summon(L, e, type) {
+    const p = L.player;
+    const spots = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].map(([dx, dy]) => [e.x + dx, e.y + dy]).filter(([x2, y2]) => passable(L, x2, y2) && !enemyAt(L, x2, y2) && !chestAt(L, x2, y2) && !(x2 === p.x && y2 === p.y) && !(x2 === L.exit.x && y2 === L.exit.y));
+    if (!spots.length || L.enemies.filter((o) => !o.dead && o.minion).length >= 3) return null;
+    const [x, y] = spots[0], m = makeEnemy(type, x, y, 100 + L.enemies.length);
+    m.awake = true;
+    m.minion = true;
+    L.enemies.push(m);
+    e.summoned = (e.summoned || 0) + 1;
+    return m;
+  }
   function canStrike(L, e, D) {
-    const p = L.player, dx = p.x - e.x, dy = p.y - e.y, d = Math.abs(dx) + Math.abs(dy);
-    if (d === 1) return true;
-    if (D.range <= 1) return false;
-    return (dx === 0 || dy === 0) && d <= D.range && lineOfSight(L, e.x, e.y, p.x, p.y);
+    const p = L.player, d = reach(e, p);
+    if (d === 1) {
+      if (e.x === p.x || e.y === p.y) return true;
+      return !opaque(L, e.x, p.y) || !opaque(L, p.x, e.y);
+    }
+    return D.range > 1 && d <= D.range && lineOfSight(L, e.x, e.y, p.x, p.y);
   }
   function enemyAttack(run, e, D, rng) {
-    const out = { type: "enemyAtk", enemy: e, hit: false, dmg: 0, blocked: 0, warded: 0, ranged: Math.abs(e.x - run.level.player.x) + Math.abs(e.y - run.level.player.y) > 1 };
-    e.fx.atk = 1;
+    const out = { type: "enemyAtk", enemy: e, hit: false, dmg: 0, blocked: 0, warded: 0, ranged: reach(e, run.level.player) > 1 };
     if (!rng.chance(D.hit, 100)) return out;
     out.hit = true;
     let n = rng.range(D.dmg[0], D.dmg[1]);
@@ -1257,11 +1499,11 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     const p = L.player;
     const r = bfs(L, p.x, p.y, (x, y, t) => {
       if (x === e.x && y === e.y) return false;
-      if (isDoorTile(t) && !doorOpen(L, x, y)) return !(D.phase && t === T.DOOR);
+      if (isDoorTile(t) && !doorOpen(L, x, y)) return !(D.role === "phase" && t === T.DOOR);
       return !!enemyAt(L, x, y) || !!chestAt(L, x, y);
     });
     const here = r.dist[e.y * L.w + e.x];
-    if (here < 0 || here > 14) return null;
+    if (here < 0 || here > 20) return null;
     for (const [dx, dy] of DIRS) {
       const x = e.x + dx, y = e.y + dy, j = y * L.w + x;
       if (r.dist[j] >= 0 && r.dist[j] < here && !(x === p.x && y === p.y)) return { x, y };
@@ -1694,7 +1936,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       const fogR = fog[0], fogG = fog[1], fogB = fog[2];
       let lr = 0, lg = 0, lb = 0;
       const light = (wx, wy, d) => {
-        const f = Math.max(0, 1 - d / 4.2), k = f * f * (s.flash ? 1 + s.flash : 1);
+        const f = Math.max(0, 1 - d / 5.6), k = f * f * (s.flash ? 1 + s.flash : 1);
         lr = amb[0] + lan[0] * k;
         lg = amb[1] + lan[1] * k;
         lb = amb[2] + lan[2] * k;
@@ -1842,7 +2084,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
           lg += sp.bright;
           lb += sp.bright;
         }
-        const ff = fogAt(ty), alpha = sp.alpha ?? 1, tint = sp.tint;
+        const ff = fogAt(ty) * (sp.fogK ?? 1), alpha = sp.alpha ?? 1, tint = sp.tint;
         for (let x = xs; x < xe; x++) {
           if (ty >= zbuf[x]) continue;
           let u = Math.floor((x - (cx - wPx / 2)) / wPx * img.w);
@@ -2135,6 +2377,36 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       }
     });
   }
+  function longGun(barrel, stock, twin) {
+    return sculpt(48, 24, (c) => {
+      poly(c, [4, 14, 20, 11, 22, 17, 6, 20], lin(c, 0, 11, 0, 20, [stock, "#2a160a"]));
+      c.fillStyle = barrel;
+      c.fillRect(20, 10, 26, 3);
+      if (twin) c.fillRect(20, 13, 26, 2);
+      c.fillStyle = "#3a3e48";
+      c.fillRect(20, 12, 6, 6);
+    });
+  }
+  function shells() {
+    return sculpt(32, 32, (c) => {
+      for (let i = 0; i < 4; i++) {
+        c.fillStyle = "#a01818";
+        c.fillRect(6 + i * 6, 12, 5, 12);
+        c.fillStyle = "#c89a3a";
+        c.fillRect(6 + i * 6, 22, 5, 4);
+      }
+    });
+  }
+  function page(col) {
+    return sculpt(32, 32, (c) => {
+      poly(c, [6, 6, 26, 4, 27, 28, 7, 28], lin(c, 0, 4, 0, 28, ["#d8ccb0", "#9a8a6a"]));
+      c.fillStyle = "#5a4a3a";
+      for (let i = 0; i < 4; i++) c.fillRect(9, 8 + i * 3, 14 - i % 2 * 4, 1);
+    }, (c) => {
+      ell(c, 17, 21, 4, 4, col);
+      ell(c, 17, 21, 1.5, 1.5, "#ffffff");
+    });
+  }
   function grave() {
     return sculpt(48, 48, (c) => {
       poly(c, [12, 47, 12, 16, 24, 8, 36, 16, 36, 47], lin(c, 12, 0, 36, 0, ["#4a4a5e", "#2a2a3a"]));
@@ -2203,6 +2475,23 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       ell(c, 16, 46, 3, 3, "#c89a3a");
     });
   }
+  function lamp() {
+    return sculpt(32, 64, (c) => {
+      c.fillStyle = "#1a1a22";
+      c.fillRect(15, 22, 3, 42);
+      c.fillRect(11, 61, 11, 3);
+      c.fillStyle = "#2a2a34";
+      c.fillRect(10, 8, 13, 3);
+      c.fillRect(10, 22, 13, 2);
+      c.fillRect(10, 8, 2, 16);
+      c.fillRect(21, 8, 2, 16);
+      poly(c, [9, 8, 16, 2, 24, 8], "#2a2a34");
+    }, (c) => {
+      c.fillStyle = "#ffc060";
+      c.fillRect(12, 11, 9, 11);
+      ell(c, 16.5, 16, 2, 3, "#fff0c0");
+    });
+  }
   function brazier() {
     return sculpt(32, 64, (c) => {
       c.fillStyle = "#2a2a34";
@@ -2232,6 +2521,13 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       keyBrass: { img: key("#e0b040"), h: 0.2 },
       keyBone: { img: key("#e8e0cc"), h: 0.2 },
       bullets: { img: ammo(), h: 0.28 },
+      shells: { img: shells(), h: 0.26 },
+      shotgun: { img: longGun("#5a5e6a", "#6a3a1a", true), h: 0.22 },
+      rifle: { img: longGun("#8a8e9a", "#5a3014", false), h: 0.22 },
+      banish: { img: page("#a0ff90"), h: 0.3 },
+      flame: { img: page("#ff5020"), h: 0.3 },
+      leech: { img: page("#ff2040"), h: 0.3 },
+      dread: { img: page("#a060ff"), h: 0.3 },
       medkit: { img: medkit(), h: 0.28 },
       cartridges: { img: cartridges(), h: 0.28 },
       grave: { img: grave(), h: 0.55 },
@@ -2240,7 +2536,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
       candles: { img: candles(), h: 0.75, light: [1, 0.6, 0.25] },
       armchair: { img: armchair(), h: 0.5 },
       clock: { img: clock(), h: 0.95 },
-      brazier: { img: brazier(), h: 0.7, light: [1.1, 0.5, 0.18] }
+      brazier: { img: brazier(), h: 0.7, light: [1.1, 0.5, 0.18] },
+      lamp: { img: lamp(), h: 0.8, light: [0.9, 0.62, 0.3] }
     };
   }
 
@@ -2381,8 +2678,18 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
     sleeve(c, 90, 90);
     fist(c, 84, 80);
   });
+  var fpShotgun = () => sculpt(128, 96, (c) => {
+    poly(c, [34, 30, 50, 24, 70, 58, 56, 64], lin(c, 0, 24, 0, 64, ["#7a7e8a", "#3a3e48", "#1e2028"]));
+    poly(c, [44, 26, 52, 23, 72, 56, 64, 60], lin(c, 0, 23, 0, 60, ["#9a9eac", "#4a4e5a"]));
+    c.fillStyle = "#14161c";
+    c.fillRect(35, 29, 5, 4);
+    c.fillRect(44, 25, 5, 4);
+    poly(c, [56, 56, 76, 50, 114, 96, 80, 96], lin(c, 56, 0, 114, 0, ["#5a3014", "#9a5a28", "#4a2410"]));
+    sleeve(c, 92, 90);
+    fist(c, 84, 80);
+  });
   function buildWeapons() {
-    return { sabre: fpSabre(), revolver: fpRevolver(), rifle: fpRifle() };
+    return { sabre: fpSabre(), revolver: fpRevolver(), shotgun: fpShotgun(), rifle: fpRifle() };
   }
   var flash = () => sculpt(40, 40, () => {
   }, (c) => {
@@ -3052,21 +3359,28 @@ void main(){
 <p class="note">${DEMO ? "A demonstration with play credits. No real money can be staked or won." : ""} For adults only (18+). Gambling can be addictive: play responsibly.</p>
 
 <h3>The crawl</h3>
-<p>Walking, turning, using a medkit or a Sign of Banishing costs nothing: those turns are free, but the things in the dark move whenever you do. <b>Only two things spin the reels:</b> attacking, and opening a chest. Each such spin is an ordinary paid spin at your bet.</p>
+<p>Walking, turning, using a medkit or casting black magic costs nothing: those turns are free, but the things in the dark move whenever you do. <b>Only two things spin the reels:</b> attacking, and opening a chest. Each such spin is an ordinary paid spin at your bet.</p>
 <p>Each realm hides two locked doors. The <b>brass key</b> and the <b>bone key</b> lie in chests. A guardian stands before the way out.</p>
-<p><b>Controls.</b> Arrows or W/S to walk, A/D to sidestep, Q/E or left/right to turn, Space to attack or open, H medkit, F sign, R change arms, M map.</p>
+<p><b>Choosing what to kill.</b> The realms are rooms full of things, and each spin strikes one of them. Tap an enemy in the view (or press T) to aim at it; red brackets mark your target and a bar shows its health. Anything within your arms' reach and in front of you can be hit. Some are worth killing first:</p>
+<table><tr><th>Enemy</th><th>Health</th><th>Hits</th><th>Reach</th><th>Trait</th></tr>
+${Object.values(ENEMIES).map((E) => `<tr><td>${E.name}</td><td>${E.hp}</td><td>${E.dmg[0]}\u2013${E.dmg[1]}</td><td>${E.range}</td><td>${E.role ? ROLE_TAGS[E.role] : ""}</td></tr>`).join("")}</table>
+<p>Healers mend the most hurt ally in sight; summoners call a new minion every few turns; when one thing in a room wakes, the whole room wakes.</p>
+<p><b>Controls.</b> Arrows or W/S to walk, A/D to sidestep, Q/E or left/right to turn, Space to attack or open, T next target, H medkit, F black magic (1\u20134 to cast), R change arms, M map.</p>
 
 <h3>How the reels fight</h3>
 <p><b>The middle row</b> always strikes, win or not, depending on the arms you hold:</p>
 <table><tr><th>Arms</th><th>Strikes with</th><th>Per symbol</th><th>Reach</th><th>Ammunition</th></tr>
 ${Object.values(WEAPONS).map((W) => `<tr><td>${W.name}</td><td>${ico(W.key)}</td><td>${W.row}</td><td>${W.range} tile${W.range > 1 ? "s" : ""}</td><td>${W.ammo ? "1 per paid spin" : "none"}</td></tr>`).join("")}</table>
+<p>The coach gun's spread also hits every enemy standing next to your target for ${Math.round(WEAPONS.shotgun.spread * 100)}% of the damage. You find the coach gun in the wood and the rifle in the manor.</p>
 <p>Whatever you hold: each ${ico("tome")} on the row whispers for ${ROW_TOME}, each ${ico("shield")} blocks ${ROW_WARD}, each reel the ${ico("eye")} covers hits for ${EYE_HIT}.</p>
 <p><b>Every winning line fights</b> (3 / 4 / 5 of a kind): ${ico("sword")} and ${ico("fire")} hit for ${s345(LINE_HIT)}; ${ico("shield")} blocks ${s345(LINE_WARD)}; ${ico("flask")} heals ${s345(LINE_HEAL)}; ${ico("tome")} hits for ${s345(LINE_TOME)} and stuns for ${s345(TOME_STUN)} turns; ${ico("crown")} doubles all damage that spin (\xD73 for five).</p>
 <p>${ico("obol")} Hold &amp; Spin: each silver bullet hits for ${SILVER_HIT}, a full screen for ${SILVER_GRAND} more. ${ico("moon")} Free spins: the dark holds still and every free spin is another attack.</p>
-<p><b>Sign of Banishing.</b> Dark magic that needs no spin: ${SIGN_DAMAGE} damage to the nearest thing in sight.</p>
+<h3>Black magic</h3>
+<p>Pages of black magic lie about the realms. Casting needs no spin, but the dark moves afterwards.</p>
+<table>${Object.values(SPELLS).map((S2) => `<tr><td>${S2.name}</td><td style="text-align:left">${S2.desc}</td></tr>`).join("")}</table>
 
 <h3>What chests hold</h3>
-<p>Opening a chest spins once. Besides any key inside, the middle row gives: each ${ico("fire")} ${CHEST.bulletsPerGun} rounds, each ${ico("shield")} ward +${CHEST.wardPerLantern}, ${CHEST.flasksForMedkit} or more ${ico("flask")} a medkit, ${CHEST.tomesForSign} or more ${ico("tome")} a Sign of Banishing. Winning lines of ${ico("fire")} give ${s345(CHEST.bulletLine)} rounds, ${ico("flask")} ${s345(CHEST.medkitLine)} medkits, ${ico("shield")} a lasting ward of ${s345(CHEST.wardLine)}, ${ico("crown")} ${s345(CHEST.hpLine)} more maximum health, ${ico("tome")} ${s345(CHEST.signLine)} Signs of Banishing, ${ico("sword")} a sharper sabre. Every ${ico("obol")} gives a rifle cartridge.</p>
+<p>Opening a chest spins once. Besides any key inside, the middle row gives: each ${ico("fire")} ${CHEST.bulletsPerGun} rounds, each ${ico("shield")} ward +${CHEST.wardPerLantern}, ${CHEST.flasksForMedkit} or more ${ico("flask")} a medkit, ${CHEST.tomesForSpell} or more ${ico("tome")} a Black Flame. Winning lines of ${ico("fire")} give ${s345(CHEST.bulletLine)} rounds, ${ico("flask")} ${s345(CHEST.medkitLine)} medkits, ${ico("shield")} a lasting ward of ${s345(CHEST.wardLine)}, ${ico("crown")} ${s345(CHEST.hpLine)} more maximum health, ${ico("tome")} ${s345(CHEST.spellLine)} Signs of Banishing, ${ico("sword")} a sharper sabre. Every ${ico("obol")} gives a rifle cartridge.</p>
 
 <h3>Paytable <small>at bet ${fmt(bet)}</small></h3>
 <table><tr><th></th><th>3</th><th>4</th><th>5</th></tr>
@@ -3196,7 +3510,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
       const sources = [];
       for (const d of L.decos) {
         const s = SPR[d.kind];
-        if (s && s.light) sources.push({ x: d.x + 0.5, y: d.y + 0.5, c: s.light, r: 3.2 });
+        if (s && s.light) sources.push({ x: d.x + 0.5, y: d.y + 0.5, c: s.light, r: 4.5 });
       }
       sources.push({ x: L.exit.x + 0.5, y: L.exit.y + 0.5, c: [1.1, 0.15, 0.1], r: 3, tile: [L.exit.x, L.exit.y] });
       const opaque2 = (x, y) => {
@@ -3204,7 +3518,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         return t === T.WALL || t === T.EXIT || isDoorTile(t);
       };
       const { lm, lmS } = buildLightMap(L, sources, opaque2);
-      const amb = { forest: [0.34, 0.32, 0.5], mansion: [0.2, 0.13, 0.22], crypt: [0.11, 0.08, 0.12] }[realm.id];
+      const amb = { forest: [0.36, 0.34, 0.52], mansion: [0.27, 0.19, 0.28], crypt: [0.19, 0.14, 0.18] }[realm.id];
       RG = { tex: tex2, lm, lmS, ambient: amb, fog: realm.fog, fogDist: realm.fogDist };
       for (const k in doorShown) delete doorShown[k];
       for (const k in L.doors) doorShown[k] = L.doors[k];
@@ -3219,7 +3533,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
     const floats = [];
     const msgs = [];
     const fx = { shake: 0, flash: 0, red: 0, green: 0, purple: 0, recoil: 0, swing: 0, muzzle: 0, banner: null, bannerT: 0 };
-    let busy = false, queued = null, bigMap = false, now = performance.now(), held = null;
+    let busy = false, queued = null, bigMap = false, magicOpen = false, enemyRects = [], now = performance.now(), held = null;
     const say = (t, col = TEXT) => {
       msgs.push({ text: t, col, t: now });
       if (msgs.length > 4) msgs.shift();
@@ -3310,7 +3624,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
             if (held) b.fn();
           }, 230);
         }
-      }
+      } else if (!b && p.y < VH) tapView(p);
     });
     const release = () => {
       held = null;
@@ -3340,12 +3654,19 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         " ": () => act("action"),
         enter: () => act("action"),
         h: () => act("medkit"),
-        f: () => act("sign"),
+        f: () => {
+          magicOpen = !magicOpen;
+        },
         r: () => act("weapon"),
-        tab: () => act("weapon"),
+        t: () => act("target"),
+        tab: () => act("target"),
         m: () => {
           bigMap = !bigMap;
         },
+        1: () => act("spell:banish"),
+        2: () => act("spell:flame"),
+        3: () => act("spell:leech"),
+        4: () => act("spell:dread"),
         "+": () => bet(1),
         "=": () => bet(1),
         "-": () => bet(-1)
@@ -3411,22 +3732,58 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         return runEvents(r.ev);
       }
       if (a === "medkit") return runEvents(useMedkit(run).ev);
-      if (a === "sign") return runEvents(castSign(run).ev);
+      if (a.startsWith("spell:")) {
+        magicOpen = false;
+        return runEvents(castSpell(run, a.slice(6)).ev);
+      }
+      if (a === "target") {
+        const t = cycleTarget(run);
+        if (t) {
+          sfx("click2");
+          targetNote(t);
+        } else {
+          sfx("error");
+          say("Nothing in sight to aim at.", DIM);
+        }
+        return;
+      }
       if (a === "weapon") {
         const w = cycleWeapon(run);
         sfx("click2");
-        say(WEAPONS[w].name, DIM);
+        const W = WEAPONS[w];
+        say(`${W.name}: reach ${W.range}${W.ammo ? ", " + ammoOf(run) + " " + AMMO_NAMES[W.ammo] : ""}.`, DIM);
         fx.swing = 0.01;
         return;
       }
       if (a === "action") {
         const c = chestAhead(run);
         if (c) return spinRound("chest", null, c);
+        const sel = L.enemies.find((e) => e.id === run.target && !e.dead);
+        if (sel && inView(L, sel, 12) && !targets(run).includes(sel)) {
+          sfx("error");
+          say(`The ${ENEMIES[sel.type].name.toLowerCase()} is beyond the reach of the ${WEAPONS[run.weapon].name.toLowerCase()}. Come closer or pick another target.`, DIM);
+          return;
+        }
         const t = attackTarget(run);
         if (t.enemy) return spinRound("attack", t.enemy, null);
         sfx("error");
         say(t.why, DIM);
       }
+    }
+    function tapView(p) {
+      if (magicOpen) {
+        magicOpen = false;
+        return;
+      }
+      const hit = enemyRects.filter((r) => p.x >= r.x0 - 3 && p.x <= r.x1 + 3 && p.y >= r.y0 - 3 && p.y <= r.y1 + 3).sort((a, b) => a.ty - b.ty)[0];
+      if (!hit || busy) return;
+      setTarget(run, hit.e);
+      sfx("click2");
+      targetNote(hit.e);
+    }
+    function targetNote(e) {
+      const D = ENEMIES[e.type], inReach = targets(run).includes(e);
+      say(`Target: ${D.name}${inReach ? "" : " (out of reach)"}.`, inReach ? TEXT : DIM);
     }
     async function runEvents(ev, fromSpin) {
       busy = true;
@@ -3507,12 +3864,30 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         case "stunned":
           floatAt(e.enemy, "STUNNED", "#c8a0ff");
           break;
-        case "sign":
+        case "spell":
           fx.purple = 1;
           sfx("curse");
-          say("You trace the Sign of Banishing.", "#c8a0ff");
+          if (e.key === "flame") sfx("fire");
+          say(e.text, "#c8a0ff");
+          await wait(300);
+          break;
+        case "enemyHeal": {
+          A2(e.ally).heal = 1;
+          floatAt(e.ally, "+" + e.n, GREEN);
+          sfx("heal", { rate: 0.7, vol: 0.5 });
+          say(`The ${ENEMIES[e.enemy.type].name.toLowerCase()} mends the ${ENEMIES[e.ally.type].name.toLowerCase()}.`, "#c8a0ff");
           await wait(250);
           break;
+        }
+        case "summon": {
+          const a = A2(e.minion);
+          a.die = 0;
+          say(e.text, RED);
+          sfx("growl", { rate: 0.8 });
+          fx.purple = 0.6;
+          await wait(350);
+          break;
+        }
         case "hurt": {
           const a = A2(e.enemy);
           a.hurt = 1;
@@ -3584,7 +3959,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
     const A2 = (e) => {
       let a = anim.get(e.id);
       if (!a) {
-        a = { x: e.x + 0.5, y: e.y + 0.5, hurt: 0, atk: 0, die: 0, wake: 0 };
+        a = { x: e.x + 0.5, y: e.y + 0.5, hurt: 0, atk: 0, die: 0, wake: 0, heal: 0 };
         anim.set(e.id, a);
       }
       return a;
@@ -3732,7 +4107,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         fx.recoil = 1;
         fx.muzzle = 1;
         fx.flash = 0.6;
-        sfx(w === "rifle" ? "rifle" : "gun");
+        sfx(w === "revolver" ? "gun" : "rifle", { rate: w === "shotgun" ? 1.25 : 1 });
       }
     }
     let last = performance.now();
@@ -3790,6 +4165,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         a.hurt = Math.max(0, a.hurt - dt * 4);
         a.atk = Math.max(0, a.atk - dt * 3);
         a.wake = Math.max(0, a.wake - dt * 1.2);
+        a.heal = Math.max(0, (a.heal || 0) - dt * 2);
         if (a.die > 0) a.die = Math.min(1, a.die + dt * 1.6);
       }
       for (const r of reels) {
@@ -3851,8 +4227,10 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
           h: s.h * (1 + lunge * 0.4),
           lift: e.dead ? -a.die * 0.25 : Math.sin(now / 420 + e.id) * 0.012,
           alpha: e.dead ? 1 - a.die : D.look === "shade" ? 0.75 : 1,
-          tint: a.hurt > 0.4 ? ((c) => rgb(255, 230, 220, c >>> 24)) : e.dead ? ((c) => rgb((c & 255) * 0.6 + 80, (c >>> 8 & 255) * 0.4, (c >>> 16 & 255) * 0.4, c >>> 24)) : null,
-          dx: a.hurt > 0 ? Math.sin(now / 20) * a.hurt * 0.03 : 0
+          tint: a.hurt > 0.4 ? ((c) => rgb(255, 230, 220, c >>> 24)) : a.heal > 0.3 ? ((c) => rgb((c & 255) * 0.6, Math.min(255, (c >>> 8 & 255) + 90), c >>> 16 & 255, c >>> 24)) : e.dead ? ((c) => rgb((c & 255) * 0.6 + 80, (c >>> 8 & 255) * 0.4, (c >>> 16 & 255) * 0.4, c >>> 24)) : null,
+          dx: a.hurt > 0 ? Math.sin(now / 20) * a.hurt * 0.03 : 0,
+          bright: e.awake ? 0.42 : 0.28,
+          fogK: 0.55
         });
       }
       view.render({
@@ -3910,6 +4288,43 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         const sx = VW / 2 * (1 + tx / ty), sy = Math.max(14, VH / 2 - view.projH * 0.3 / ty) - age * 18;
         text(ctx, f.text, sx, sy, f.col, { align: "center", scale: ty < 2 ? 2 : 1 });
       }
+      enemyRects = [];
+      const inReach = new Set(targets(run)), chosen = scene === "play" && !run.over ? currentTarget(run, 12) : null;
+      for (const e of L.enemies) {
+        if (e.dead) continue;
+        const a = A2(e), rx = a.x - cam.x, ry = a.y - cam.y, tx = inv * (dirY * rx - dirX * ry), ty = inv * (-plY * rx + plX * ry);
+        if (ty < 0.25) continue;
+        const cx = VW / 2 * (1 + tx / ty), col = Math.round(clamp(cx, 0, VW - 1));
+        if (ty > view.zbuf[col] + 0.3) continue;
+        const D = ENEMIES[e.type], spr = SPR[D.look], hPx = view.projH * spr.h / ty, wPx = hPx * spr.img.w / spr.img.h;
+        const bottom = VH / 2 + view.projH * 0.5 / ty, top = bottom - hPx;
+        const r = { e, ty, x0: cx - wPx * 0.32, x1: cx + wPx * 0.32, y0: top + hPx * 0.08, y1: bottom };
+        enemyRects.push(r);
+        if (!e.awake && !inReach.has(e)) continue;
+        const bw = clamp(wPx * 0.5, 10, 40), by = Math.max(2, r.y0 - 5);
+        ctx.fillStyle = "rgba(6,5,10,0.8)";
+        ctx.fillRect(cx - bw / 2 - 1, by - 1, bw + 2, 4);
+        ctx.fillStyle = inReach.has(e) ? "#d03030" : "#6a3030";
+        ctx.fillRect(cx - bw / 2, by, Math.max(1, bw * e.hp / e.maxHp), 2);
+        if (e.stun) text(ctx, "Z", cx + bw / 2 + 2, by - 3, "#c8a0ff");
+        if (e === chosen) {
+          const k = 4 + Math.sin(now / 150) * 1.5, c = inReach.has(e) ? RED : DIM;
+          ctx.fillStyle = c;
+          for (const [x, y, sx, sy] of [[r.x0, r.y0, 1, 1], [r.x1, r.y0, -1, 1], [r.x0, r.y1, 1, -1], [r.x1, r.y1, -1, -1]]) {
+            ctx.fillRect(x - (sx < 0 ? 1 : 0), y - (sy < 0 ? 1 : 0), sx * k, 1);
+            ctx.fillRect(x - (sx < 0 ? 1 : 0), y - (sy < 0 ? 1 : 0), 1, sy * k);
+          }
+        }
+      }
+      if (chosen) {
+        const D = ENEMIES[chosen.type], tag = D.role ? ROLE_TAGS[D.role] : "", label = `${D.name}  ${chosen.hp}/${chosen.maxHp}`;
+        const okReach = inReach.has(chosen);
+        ctx.fillStyle = "rgba(6,5,10,0.7)";
+        ctx.fillRect(2, 2, textWidth2(label) + (tag ? textWidth2(tag) + 8 : 0) + 6, 11);
+        text(ctx, label, 5, 4, okReach ? TEXT : DIM);
+        if (tag) text(ctx, tag, 5 + textWidth2(label) + 6, 4, "#ffb060");
+        if (!okReach) text(ctx, "OUT OF REACH", 5, 15, DIM);
+      }
       let my = VH - 10;
       for (let i = msgs.length - 1; i >= 0; i--) {
         const m = msgs[i], age = (now - m.t) / 1e3;
@@ -3931,10 +4346,21 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         text(ctx, fx.banner, VW / 2, 39, GOLD, { align: "center" });
         ctx.globalAlpha = 1;
       }
+      if (magicOpen) drawMagic();
       if (bigMap) drawBigMap(L);
       ctx.restore();
       ctx.fillStyle = "#2a1e3a";
       ctx.fillRect(0, VH, VW, 1);
+    }
+    function drawMagic() {
+      const bw = 56, bh = 30, g = 2, n = SPELL_ORDER.length, x0 = (VW - (bw * 2 + g)) / 2, y0 = VH - 2 * (bh + g) - 18;
+      ctx.fillStyle = "rgba(10,4,18,0.88)";
+      ctx.fillRect(x0 - 6, y0 - 16, bw * 2 + g + 12, 2 * (bh + g) + 20);
+      text(ctx, "BLACK MAGIC  (NO SPIN, TAKES A TURN)", VW / 2, y0 - 12, "#c8a0ff", { align: "center" });
+      SPELL_ORDER.forEach((k, i) => {
+        const S2 = SPELLS[k], x = x0 + i % 2 * (bw + g), y = y0 + (i / 2 | 0) * (bh + g), have = run.spells[k];
+        button(x, y, bw, bh, `${S2.short} ${have}`, () => act("spell:" + k), { enabled: have > 0 && !busy });
+      });
     }
     function mapColor(L, x, y) {
       const t = L.tiles[y * L.w + x];
@@ -3946,20 +4372,25 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
       return "#5c4e80";
     }
     function drawMinimap(L) {
-      const s = 2, mw = L.w * s, x0 = VW - mw - 3, y0 = 3;
+      const s = 2, R2 = 12, mw = (2 * R2 + 1) * s, x0 = VW - mw - 3, y0 = 3, p = L.player;
       ctx.fillStyle = "rgba(6,5,10,0.72)";
-      ctx.fillRect(x0 - 2, y0 - 2, mw + 4, L.h * s + 4);
+      ctx.fillRect(x0 - 2, y0 - 2, mw + 4, mw + 4);
       ctx.strokeStyle = "#5a4a7e";
       ctx.lineWidth = 1;
-      ctx.strokeRect(x0 - 2.5, y0 - 2.5, mw + 5, L.h * s + 5);
-      btns.push({ x: x0 - 2, y: y0 - 2, w: mw + 4, h: L.h * s + 4, fn: () => {
+      ctx.strokeRect(x0 - 2.5, y0 - 2.5, mw + 5, mw + 5);
+      btns.push({ x: x0 - 2, y: y0 - 2, w: mw + 4, h: mw + 4, fn: () => {
         bigMap = !bigMap;
         sfx("click");
       }, on: true });
-      plotMap(L, x0, y0, s);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, y0, mw, mw);
+      ctx.clip();
+      plotMap(L, x0 - (p.x - R2) * s, y0 - (p.y - R2) * s, s);
+      ctx.restore();
     }
     function drawBigMap(L) {
-      const s = Math.floor(Math.min(VW - 20, VH - 20) / L.w), mw = L.w * s, x0 = VW - mw >> 1, y0 = VH - L.h * s >> 1;
+      const s = Math.max(2, Math.floor(Math.min(VW - 10, VH - 24) / L.w)), mw = L.w * s, x0 = VW - mw >> 1, y0 = VH - L.h * s >> 1;
       ctx.fillStyle = "rgba(6,5,10,0.92)";
       ctx.fillRect(0, 0, VW, VH);
       plotMap(L, x0, y0, s);
@@ -3985,7 +4416,7 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
       for (const c of L.chests) if (L.seen[c.y * L.w + c.x]) dot(c.x, c.y, c.open ? "#5a4a2a" : "#e0a030", 0.8);
       for (const p2 of L.pickups) if (L.seen[p2.y * L.w + p2.x]) dot(p2.x, p2.y, "#60c060", 0.6);
       const p = L.player;
-      for (const e of L.enemies) if (!e.dead && Math.abs(e.x - p.x) + Math.abs(e.y - p.y) <= 9 && lineOfSight(L, p.x, p.y, e.x, e.y)) dot(e.x, e.y, (now / 300 | 0) % 2 ? "#ff3030" : "#a01010", 0.8);
+      for (const e of L.enemies) if (!e.dead && reach(e, p) <= 10 && lineOfSight(L, p.x, p.y, e.x, e.y)) dot(e.x, e.y, (now / 300 | 0) % 2 ? "#ff3030" : "#a01010", 0.8);
       dot(p.x, p.y, "#ffffff", 1);
       const [dx, dy] = DIRS[p.dir];
       ctx.fillStyle = GOLD;
@@ -4011,9 +4442,8 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
         x += text(ctx, label, x, y + 2, col) + 6;
       };
       const W = WEAPONS[run.weapon];
-      item(run.weapon === "sabre" ? "SABRE" + (run.hone ? "+" + run.hone : "") : (run.weapon === "rifle" ? "RIFLE " : "REV ") + ammoOf(run), GOLD);
-      if (run.weapon !== "revolver") item("\u2022" + run.bullets, DIM);
-      if (run.weapons.rifle && run.weapon !== "rifle") item("R" + run.cartridges, DIM);
+      item(W.short + (W.ammo ? " " + ammoOf(run) : run.hone ? "+" + run.hone : ""), GOLD);
+      item("R" + W.range, DIM);
       if (run.ward) item("W" + run.ward, "#9ad0ff");
       let kx = VW - 3;
       for (const key2 of ["bone", "brass"]) if (L.keys[key2]) {
@@ -4147,15 +4577,21 @@ ${DEMO ? `<button id="sTopup">Reset demo credits to ${fmt(DEMO_BALANCE)}</button
       const chest2 = chestAhead(run), tgt = attackTarget(run);
       const free = inFreeSpins(wallet), afford = free || canAfford(wallet, wallet.bet);
       const label = chest2 ? "OPEN CHEST\nSPIN " + fmt2(wallet.bet) : tgt.enemy ? "ATTACK\nSPIN " + fmt2(wallet.bet) : "ATTACK";
+      if (inFreeSpins(wallet) && busy) {
+      }
       button(rx, ctrlY, rw, bh, label, () => act("action"), { hot: !!(chest2 || tgt.enemy) && afford, enabled: !busy && !dis });
       const sw = Math.floor((rw - 2 * g) / 3);
       button(rx, ctrlY + bh + g, sw, bh, `MEDKIT
 ${run.medkits}`, () => act("medkit"), { enabled: !busy && !dis && run.medkits > 0 });
-      button(rx + sw + g, ctrlY + bh + g, sw, bh, `SIGN
-${run.signs}`, () => act("sign"), { enabled: !busy && !dis && run.signs > 0 });
+      const nSpells = SPELL_ORDER.reduce((a, k) => a + run.spells[k], 0);
+      button(rx + sw + g, ctrlY + bh + g, sw, bh, `MAGIC
+${nSpells}`, () => {
+        magicOpen = !magicOpen;
+        sfx("click");
+      }, { enabled: !busy && !dis && nSpells > 0 });
       const W = WEAPONS[run.weapon];
       button(rx + 2 * (sw + g), ctrlY + bh + g, rw - 2 * (sw + g), bh, `ARMS
-${run.weapon === "sabre" ? "SABRE" : run.weapon === "rifle" ? "RIFLE" : "REVOLV"}`, () => act("weapon"), { enabled: !busy && !dis });
+${W.short}`, () => act("weapon"), { enabled: !busy && !dis });
     }
     function drawTitle() {
       const off = now / 80 % SKY.w, img = new ImageData(VW, 80), u = new Uint32Array(img.data.buffer);
@@ -4217,7 +4653,7 @@ ${run.weapon === "sabre" ? "SABRE" : run.weapon === "rifle" ? "RIFLE" : "REVOLV"
       saveRun();
     });
     requestAnimationFrame(frame);
-    window.__hunter = { get run() {
+    window.__hunter = { G: game_exports, get run() {
       return run;
     }, get wallet() {
       return wallet;

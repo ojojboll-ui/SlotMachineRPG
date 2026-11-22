@@ -6,7 +6,7 @@ import * as S from '../slot/session.js';
 import { gameRng, hashStr } from '../rng.js';
 import * as G from '../world/game.js';
 import { T, DIRS, isDoorTile } from '../world/maze.js';
-import { REALMS, ENEMIES, WEAPONS, THEME, KEY_NAMES } from '../world/data.js';
+import { REALMS, ENEMIES, WEAPONS, THEME, KEY_NAMES, SPELLS, SPELL_ORDER, ROLE_TAGS, AMMO_NAMES } from '../world/data.js';
 import { createView, buildLightMap } from '../gfx/raycast.js';
 import { realmTextures, skyPanorama } from '../gfx/textures.js';
 import { buildSprites } from '../gfx/sprites.js';
@@ -76,11 +76,11 @@ export function startApp() {
     const L = run.level, realm = L.realm;
     const tex = realmTextures(realm.id);
     const sources = [];
-    for (const d of L.decos) { const s = SPR[d.kind]; if (s && s.light) sources.push({ x: d.x + 0.5, y: d.y + 0.5, c: s.light, r: 3.2 }); }
+    for (const d of L.decos) { const s = SPR[d.kind]; if (s && s.light) sources.push({ x: d.x + 0.5, y: d.y + 0.5, c: s.light, r: 4.5 }); }
     sources.push({ x: L.exit.x + 0.5, y: L.exit.y + 0.5, c: [1.1, 0.15, 0.1], r: 3, tile: [L.exit.x, L.exit.y] });
     const opaque = (x, y) => { const t = G.tileAt(L, x, y); return t === T.WALL || t === T.EXIT || isDoorTile(t); };
     const { lm, lmS } = buildLightMap(L, sources, opaque);
-    const amb = { forest: [0.34, 0.32, 0.5], mansion: [0.2, 0.13, 0.22], crypt: [0.11, 0.08, 0.12] }[realm.id];
+    const amb = { forest: [0.36, 0.34, 0.52], mansion: [0.27, 0.19, 0.28], crypt: [0.19, 0.14, 0.18] }[realm.id];
     RG = { tex, lm, lmS, ambient: amb, fog: realm.fog, fogDist: realm.fogDist };
     for (const k in doorShown) delete doorShown[k];
     for (const k in L.doors) doorShown[k] = L.doors[k];
@@ -94,7 +94,7 @@ export function startApp() {
   const floats = [];           // { wx, wy, text, col, t } in the world, or { hud: true, ... }
   const msgs = [];             // { text, col, t }
   const fx = { shake: 0, flash: 0, red: 0, green: 0, purple: 0, recoil: 0, swing: 0, muzzle: 0, banner: null, bannerT: 0 };
-  let busy = false, queued = null, bigMap = false, now = performance.now(), held = null;
+  let busy = false, queued = null, bigMap = false, magicOpen = false, enemyRects = [], now = performance.now(), held = null;
   const say = (t, col = TEXT) => { msgs.push({ text: t, col, t: now }); if (msgs.length > 4) msgs.shift(); };
   const sfx = (n, o) => audio.play(n, o);
 
@@ -153,7 +153,7 @@ export function startApp() {
     if (b && b.on) {
       b.fn();
       if (b.repeat) { clearInterval(repeatTimer); repeatTimer = setInterval(() => { if (held) b.fn(); }, 230); }
-    }
+    } else if (!b && p.y < VH) tapView(p);
   });
   const release = () => { held = null; clearInterval(repeatTimer); };
   out.addEventListener('pointerup', release); out.addEventListener('pointercancel', release); out.addEventListener('pointerleave', release);
@@ -165,7 +165,8 @@ export function startApp() {
       arrowup: () => act('fwd'), w: () => act('fwd'), arrowdown: () => act('back'), s: () => act('back'),
       arrowleft: () => act('left'), q: () => act('left'), arrowright: () => act('right'), e: () => act('right'),
       a: () => act('sleft'), d: () => act('sright'), ' ': () => act('action'), enter: () => act('action'),
-      h: () => act('medkit'), f: () => act('sign'), r: () => act('weapon'), tab: () => act('weapon'), m: () => { bigMap = !bigMap; },
+      h: () => act('medkit'), f: () => { magicOpen = !magicOpen; }, r: () => act('weapon'), t: () => act('target'), tab: () => act('target'), m: () => { bigMap = !bigMap; },
+      1: () => act('spell:banish'), 2: () => act('spell:flame'), 3: () => act('spell:leech'), 4: () => act('spell:dread'),
       '+': () => bet(1), '=': () => bet(1), '-': () => bet(-1),
     };
     if (map[k]) { e.preventDefault(); map[k](); }
@@ -201,15 +202,29 @@ export function startApp() {
       return runEvents(r.ev);
     }
     if (a === 'medkit') return runEvents(G.useMedkit(run).ev);
-    if (a === 'sign') return runEvents(G.castSign(run).ev);
-    if (a === 'weapon') { const w = G.cycleWeapon(run); sfx('click2'); say(WEAPONS[w].name, DIM); fx.swing = 0.01; return; }
+    if (a.startsWith('spell:')) { magicOpen = false; return runEvents(G.castSpell(run, a.slice(6)).ev); }
+    if (a === 'target') { const t = G.cycleTarget(run); if (t) { sfx('click2'); targetNote(t); } else { sfx('error'); say('Nothing in sight to aim at.', DIM); } return; }
+    if (a === 'weapon') { const w = G.cycleWeapon(run); sfx('click2'); const W = WEAPONS[w]; say(`${W.name}: reach ${W.range}${W.ammo ? ', ' + G.ammoOf(run) + ' ' + AMMO_NAMES[W.ammo] : ''}.`, DIM); fx.swing = 0.01; return; }
     if (a === 'action') {
       const c = G.chestAhead(run);
       if (c) return spinRound('chest', null, c);
+      const sel = L.enemies.find(e => e.id === run.target && !e.dead);
+      if (sel && G.inView(L, sel, 12) && !G.targets(run).includes(sel)) { sfx('error'); say(`The ${ENEMIES[sel.type].name.toLowerCase()} is beyond the reach of the ${WEAPONS[run.weapon].name.toLowerCase()}. Come closer or pick another target.`, DIM); return; }
       const t = G.attackTarget(run);
       if (t.enemy) return spinRound('attack', t.enemy, null);
       sfx('error'); say(t.why, DIM);
     }
+  }
+
+  function tapView(p) {
+    if (magicOpen) { magicOpen = false; return; }
+    const hit = enemyRects.filter(r => p.x >= r.x0 - 3 && p.x <= r.x1 + 3 && p.y >= r.y0 - 3 && p.y <= r.y1 + 3).sort((a, b) => a.ty - b.ty)[0];
+    if (!hit || busy) return;
+    G.setTarget(run, hit.e); sfx('click2'); targetNote(hit.e);
+  }
+  function targetNote(e) {
+    const D = ENEMIES[e.type], inReach = G.targets(run).includes(e);
+    say(`Target: ${D.name}${inReach ? '' : ' (out of reach)'}.`, inReach ? TEXT : DIM);
   }
 
   async function runEvents(ev, fromSpin) {
@@ -238,7 +253,9 @@ export function startApp() {
       case 'heal': fx.green = 1; sfx('heal'); floatHud('+' + e.n, GREEN); break;
       case 'wake': { const a = A(e.enemy); a.wake = 1; if (ENEMIES[e.enemy.type].boss) { say(`${ENEMIES[e.enemy.type].name} awakens.`, RED); sfx('growl', { vol: 0.9 }); } else sfx('growl', { vol: 0.4, rate: 1.2 + (e.enemy.id % 5) * 0.08 }); break; }
       case 'stunned': floatAt(e.enemy, 'STUNNED', '#c8a0ff'); break;
-      case 'sign': fx.purple = 1; sfx('curse'); say('You trace the Sign of Banishing.', '#c8a0ff'); await wait(250); break;
+      case 'spell': fx.purple = 1; sfx('curse'); if (e.key === 'flame') sfx('fire'); say(e.text, '#c8a0ff'); await wait(300); break;
+      case 'enemyHeal': { A(e.ally).heal = 1; floatAt(e.ally, '+' + e.n, GREEN); sfx('heal', { rate: 0.7, vol: 0.5 }); say(`The ${ENEMIES[e.enemy.type].name.toLowerCase()} mends the ${ENEMIES[e.ally.type].name.toLowerCase()}.`, '#c8a0ff'); await wait(250); break; }
+      case 'summon': { const a = A(e.minion); a.die = 0; say(e.text, RED); sfx('growl', { rate: 0.8 }); fx.purple = 0.6; await wait(350); break; }
       case 'hurt': { const a = A(e.enemy); a.hurt = 1; floatAt(e.enemy, '-' + e.n, e.n >= 20 ? GOLD : TEXT); sfx(e.n >= 20 ? 'heavy' : 'hit'); await wait(120); break; }
       case 'miss': floatAt(e.enemy, 'MISS', DIM); break;
       case 'kill': { const a = A(e.enemy); a.die = 0.001; say(e.text, GOLD); sfx('die'); await wait(300); break; }
@@ -264,7 +281,7 @@ export function startApp() {
       }
     }
   }
-  const A = e => { let a = anim.get(e.id); if (!a) { a = { x: e.x + 0.5, y: e.y + 0.5, hurt: 0, atk: 0, die: 0, wake: 0 }; anim.set(e.id, a); } return a; };
+  const A = e => { let a = anim.get(e.id); if (!a) { a = { x: e.x + 0.5, y: e.y + 0.5, hurt: 0, atk: 0, die: 0, wake: 0, heal: 0 }; anim.set(e.id, a); } return a; };
   const floatAt = (e, t, col) => floats.push({ wx: e.x + 0.5, wy: e.y + 0.5, text: t, col, t: now });
   const floatHud = (t, col) => floats.push({ hud: true, text: t, col, t: now });
 
@@ -363,7 +380,7 @@ export function startApp() {
   function weaponFire(paid) {
     const w = run.weapon;
     if (w === 'sabre') { fx.swing = 1; sfx('slash'); }
-    else { fx.recoil = 1; fx.muzzle = 1; fx.flash = 0.6; sfx(w === 'rifle' ? 'rifle' : 'gun'); }
+    else { fx.recoil = 1; fx.muzzle = 1; fx.flash = 0.6; sfx(w === 'revolver' ? 'gun' : 'rifle', { rate: w === 'shotgun' ? 1.25 : 1 }); }
   }
 
   // ------------------------------------------------------------------------------------------------ frame
@@ -393,7 +410,7 @@ export function startApp() {
     for (const e of L.enemies) {
       const a = A(e), k = Math.min(1, dt * 10);
       a.x += (e.x + 0.5 - a.x) * k; a.y += (e.y + 0.5 - a.y) * k;
-      a.hurt = Math.max(0, a.hurt - dt * 4); a.atk = Math.max(0, a.atk - dt * 3); a.wake = Math.max(0, a.wake - dt * 1.2);
+      a.hurt = Math.max(0, a.hurt - dt * 4); a.atk = Math.max(0, a.atk - dt * 3); a.wake = Math.max(0, a.wake - dt * 1.2); a.heal = Math.max(0, (a.heal || 0) - dt * 2);
       if (a.die > 0) a.die = Math.min(1, a.die + dt * 1.6);
     }
     // reels
@@ -435,8 +452,9 @@ export function startApp() {
       sprites.push({
         x: a.x + (cam.x - a.x) / toward * lunge, y: a.y + (cam.y - a.y) / toward * lunge, img: s.img, h: s.h * (1 + lunge * 0.4),
         lift: e.dead ? -a.die * 0.25 : Math.sin(now / 420 + e.id) * 0.012, alpha: e.dead ? 1 - a.die : (D.look === 'shade' ? 0.75 : 1),
-        tint: a.hurt > 0.4 ? (c => rgb(255, 230, 220, c >>> 24)) : e.dead ? (c => rgb((c & 255) * 0.6 + 80, ((c >>> 8) & 255) * 0.4, ((c >>> 16) & 255) * 0.4, c >>> 24)) : null,
+        tint: a.hurt > 0.4 ? (c => rgb(255, 230, 220, c >>> 24)) : a.heal > 0.3 ? (c => rgb((c & 255) * 0.6, Math.min(255, ((c >>> 8) & 255) + 90), (c >>> 16) & 255, c >>> 24)) : e.dead ? (c => rgb((c & 255) * 0.6 + 80, ((c >>> 8) & 255) * 0.4, ((c >>> 16) & 255) * 0.4, c >>> 24)) : null,
         dx: a.hurt > 0 ? Math.sin(now / 20) * a.hurt * 0.03 : 0,
+        bright: e.awake ? 0.42 : 0.28, fogK: 0.55,
       });
     }
     view.render({
@@ -466,7 +484,38 @@ export function startApp() {
       const sx = VW / 2 * (1 + tx / ty), sy = Math.max(14, VH / 2 - view.projH * 0.3 / ty) - age * 18;
       text(ctx, f.text, sx, sy, f.col, { align: 'center', scale: ty < 2 ? 2 : 1 });
     }
-    // wake marks
+    // targets: hp bars over what can be hit, brackets on the chosen one
+    enemyRects = [];
+    const inReach = new Set(G.targets(run)), chosen = scene === 'play' && !run.over ? G.currentTarget(run, 12) : null;
+    for (const e of L.enemies) {
+      if (e.dead) continue;
+      const a = A(e), rx = a.x - cam.x, ry = a.y - cam.y, tx = inv * (dirY * rx - dirX * ry), ty = inv * (-plY * rx + plX * ry);
+      if (ty < 0.25) continue;
+      const cx = VW / 2 * (1 + tx / ty), col = Math.round(clamp(cx, 0, VW - 1));
+      if (ty > view.zbuf[col] + 0.3) continue;
+      const D = ENEMIES[e.type], spr = SPR[D.look], hPx = view.projH * spr.h / ty, wPx = hPx * spr.img.w / spr.img.h;
+      const bottom = VH / 2 + view.projH * 0.5 / ty, top = bottom - hPx;
+      const r = { e, ty, x0: cx - wPx * 0.32, x1: cx + wPx * 0.32, y0: top + hPx * 0.08, y1: bottom };
+      enemyRects.push(r);
+      if (!e.awake && !inReach.has(e)) continue;
+      const bw = clamp(wPx * 0.5, 10, 40), by = Math.max(2, r.y0 - 5);
+      ctx.fillStyle = 'rgba(6,5,10,0.8)'; ctx.fillRect(cx - bw / 2 - 1, by - 1, bw + 2, 4);
+      ctx.fillStyle = inReach.has(e) ? '#d03030' : '#6a3030'; ctx.fillRect(cx - bw / 2, by, Math.max(1, bw * e.hp / e.maxHp), 2);
+      if (e.stun) text(ctx, 'Z', cx + bw / 2 + 2, by - 3, '#c8a0ff');
+      if (e === chosen) {
+        const k = 4 + Math.sin(now / 150) * 1.5, c = inReach.has(e) ? RED : DIM;
+        ctx.fillStyle = c;
+        for (const [x, y, sx, sy] of [[r.x0, r.y0, 1, 1], [r.x1, r.y0, -1, 1], [r.x0, r.y1, 1, -1], [r.x1, r.y1, -1, -1]]) { ctx.fillRect(x - (sx < 0 ? 1 : 0), y - (sy < 0 ? 1 : 0), sx * k, 1); ctx.fillRect(x - (sx < 0 ? 1 : 0), y - (sy < 0 ? 1 : 0), 1, sy * k); }
+      }
+    }
+    if (chosen) {
+      const D = ENEMIES[chosen.type], tag = D.role ? ROLE_TAGS[D.role] : '', label = `${D.name}  ${chosen.hp}/${chosen.maxHp}`;
+      const okReach = inReach.has(chosen);
+      ctx.fillStyle = 'rgba(6,5,10,0.7)'; ctx.fillRect(2, 2, textWidth(label) + (tag ? textWidth(tag) + 8 : 0) + 6, 11);
+      text(ctx, label, 5, 4, okReach ? TEXT : DIM);
+      if (tag) text(ctx, tag, 5 + textWidth(label) + 6, 4, '#ffb060');
+      if (!okReach) text(ctx, 'OUT OF REACH', 5, 15, DIM);
+    }
     // messages
     let my = VH - 10;
     for (let i = msgs.length - 1; i >= 0; i--) {
@@ -480,10 +529,21 @@ export function startApp() {
       ctx.globalAlpha = a; ctx.fillStyle = 'rgba(6,5,10,0.75)'; ctx.fillRect(0, 34, VW, 18);
       text(ctx, fx.banner, VW / 2, 39, GOLD, { align: 'center' }); ctx.globalAlpha = 1;
     }
+    if (magicOpen) drawMagic();
     if (bigMap) drawBigMap(L);
     ctx.restore();
     // a thin frame under the view
     ctx.fillStyle = '#2a1e3a'; ctx.fillRect(0, VH, VW, 1);
+  }
+
+  function drawMagic() {
+    const bw = 56, bh = 30, g = 2, n = SPELL_ORDER.length, x0 = (VW - (bw * 2 + g)) / 2, y0 = VH - 2 * (bh + g) - 18;
+    ctx.fillStyle = 'rgba(10,4,18,0.88)'; ctx.fillRect(x0 - 6, y0 - 16, bw * 2 + g + 12, 2 * (bh + g) + 20);
+    text(ctx, 'BLACK MAGIC  (NO SPIN, TAKES A TURN)', VW / 2, y0 - 12, '#c8a0ff', { align: 'center' });
+    SPELL_ORDER.forEach((k, i) => {
+      const S = SPELLS[k], x = x0 + (i % 2) * (bw + g), y = y0 + ((i / 2) | 0) * (bh + g), have = run.spells[k];
+      button(x, y, bw, bh, `${S.short} ${have}`, () => act('spell:' + k), { enabled: have > 0 && !busy });
+    });
   }
 
   function mapColor(L, x, y) {
@@ -496,14 +556,16 @@ export function startApp() {
     return '#5c4e80';
   }
   function drawMinimap(L) {
-    const s = 2, mw = L.w * s, x0 = VW - mw - 3, y0 = 3;
-    ctx.fillStyle = 'rgba(6,5,10,0.72)'; ctx.fillRect(x0 - 2, y0 - 2, mw + 4, L.h * s + 4);
-    ctx.strokeStyle = '#5a4a7e'; ctx.lineWidth = 1; ctx.strokeRect(x0 - 2.5, y0 - 2.5, mw + 5, L.h * s + 5);
-    btns.push({ x: x0 - 2, y: y0 - 2, w: mw + 4, h: L.h * s + 4, fn: () => { bigMap = !bigMap; sfx('click'); }, on: true });
-    plotMap(L, x0, y0, s);
+    const s = 2, R = 12, mw = (2 * R + 1) * s, x0 = VW - mw - 3, y0 = 3, p = L.player;
+    ctx.fillStyle = 'rgba(6,5,10,0.72)'; ctx.fillRect(x0 - 2, y0 - 2, mw + 4, mw + 4);
+    ctx.strokeStyle = '#5a4a7e'; ctx.lineWidth = 1; ctx.strokeRect(x0 - 2.5, y0 - 2.5, mw + 5, mw + 5);
+    btns.push({ x: x0 - 2, y: y0 - 2, w: mw + 4, h: mw + 4, fn: () => { bigMap = !bigMap; sfx('click'); }, on: true });
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, mw, mw); ctx.clip();
+    plotMap(L, x0 - (p.x - R) * s, y0 - (p.y - R) * s, s);
+    ctx.restore();
   }
   function drawBigMap(L) {
-    const s = Math.floor(Math.min(VW - 20, VH - 20) / L.w), mw = L.w * s, x0 = (VW - mw) >> 1, y0 = (VH - L.h * s) >> 1;
+    const s = Math.max(2, Math.floor(Math.min(VW - 10, VH - 24) / L.w)), mw = L.w * s, x0 = (VW - mw) >> 1, y0 = (VH - L.h * s) >> 1;
     ctx.fillStyle = 'rgba(6,5,10,0.92)'; ctx.fillRect(0, 0, VW, VH);
     plotMap(L, x0, y0, s);
     text(ctx, L.realm.name, 4, 4, GOLD);
@@ -520,7 +582,7 @@ export function startApp() {
     for (const c of L.chests) if (L.seen[c.y * L.w + c.x]) dot(c.x, c.y, c.open ? '#5a4a2a' : '#e0a030', 0.8);
     for (const p of L.pickups) if (L.seen[p.y * L.w + p.x]) dot(p.x, p.y, '#60c060', 0.6);
     const p = L.player;
-    for (const e of L.enemies) if (!e.dead && Math.abs(e.x - p.x) + Math.abs(e.y - p.y) <= 9 && G.lineOfSight(L, p.x, p.y, e.x, e.y)) dot(e.x, e.y, (now / 300 | 0) % 2 ? '#ff3030' : '#a01010', 0.8);
+    for (const e of L.enemies) if (!e.dead && G.reach(e, p) <= 10 && G.lineOfSight(L, p.x, p.y, e.x, e.y)) dot(e.x, e.y, (now / 300 | 0) % 2 ? '#ff3030' : '#a01010', 0.8);
     dot(p.x, p.y, '#ffffff', 1);
     const [dx, dy] = DIRS[p.dir]; ctx.fillStyle = GOLD;
     if (s >= 4) ctx.fillRect(x0 + p.x * s + s / 2 + dx * s / 2 - 1, y0 + p.y * s + s / 2 + dy * s / 2 - 1, 2, 2);
@@ -539,9 +601,8 @@ export function startApp() {
     let x = 70;
     const item = (label, col) => { x += text(ctx, label, x, y + 2, col) + 6; };
     const W = WEAPONS[run.weapon];
-    item(run.weapon === 'sabre' ? 'SABRE' + (run.hone ? '+' + run.hone : '') : (run.weapon === 'rifle' ? 'RIFLE ' : 'REV ') + G.ammoOf(run), GOLD);
-    if (run.weapon !== 'revolver') item('•' + run.bullets, DIM);
-    if (run.weapons.rifle && run.weapon !== 'rifle') item('R' + run.cartridges, DIM);
+    item(W.short + (W.ammo ? ' ' + G.ammoOf(run) : run.hone ? '+' + run.hone : ''), GOLD);
+    item('R' + W.range, DIM);
     if (run.ward) item('W' + run.ward, '#9ad0ff');
     // keys
     let kx = VW - 3;
@@ -642,12 +703,14 @@ export function startApp() {
     const chest = G.chestAhead(run), tgt = G.attackTarget(run);
     const free = S.inFreeSpins(wallet), afford = free || S.canAfford(wallet, wallet.bet);
     const label = chest ? 'OPEN CHEST\nSPIN ' + fmt(wallet.bet) : tgt.enemy ? 'ATTACK\nSPIN ' + fmt(wallet.bet) : 'ATTACK';
+    if (S.inFreeSpins(wallet) && busy) { /* the free spins play themselves */ }
     button(rx, ctrlY, rw, bh, label, () => act('action'), { hot: !!(chest || tgt.enemy) && afford, enabled: !busy && !dis });
     const sw = Math.floor((rw - 2 * g) / 3);
     button(rx, ctrlY + bh + g, sw, bh, `MEDKIT\n${run.medkits}`, () => act('medkit'), { enabled: !busy && !dis && run.medkits > 0 });
-    button(rx + sw + g, ctrlY + bh + g, sw, bh, `SIGN\n${run.signs}`, () => act('sign'), { enabled: !busy && !dis && run.signs > 0 });
+    const nSpells = SPELL_ORDER.reduce((a, k) => a + run.spells[k], 0);
+    button(rx + sw + g, ctrlY + bh + g, sw, bh, `MAGIC\n${nSpells}`, () => { magicOpen = !magicOpen; sfx('click'); }, { enabled: !busy && !dis && nSpells > 0 });
     const W = WEAPONS[run.weapon];
-    button(rx + 2 * (sw + g), ctrlY + bh + g, rw - 2 * (sw + g), bh, `ARMS\n${run.weapon === 'sabre' ? 'SABRE' : run.weapon === 'rifle' ? 'RIFLE' : 'REVOLV'}`, () => act('weapon'), { enabled: !busy && !dis });
+    button(rx + 2 * (sw + g), ctrlY + bh + g, rw - 2 * (sw + g), bh, `ARMS\n${W.short}`, () => act('weapon'), { enabled: !busy && !dis });
   }
 
   // ------------------------------------------------------------------------------------------------ screens
@@ -702,5 +765,5 @@ export function startApp() {
   window.addEventListener('beforeunload', () => { saveWallet(); saveRun(); });
   requestAnimationFrame(frame);
   // a handle for automated play-testing
-  window.__hunter = { get run() { return run; }, get wallet() { return wallet; }, act, get busy() { return busy; }, setup: () => { G.reveal(run); setupRealm(); }, goto: r => { run.realm = r; G.enterRealm(run); setupRealm(); } };
+  window.__hunter = { G, get run() { return run; }, get wallet() { return wallet; }, act, get busy() { return busy; }, setup: () => { G.reveal(run); setupRealm(); }, goto: r => { run.realm = r; G.enterRealm(run); setupRealm(); } };
 }

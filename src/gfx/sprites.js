@@ -159,6 +159,23 @@ function cartridges() {
   return sculpt(32, 32, c => { for (let i = 0; i < 3; i++) { c.fillStyle = '#b8b8c8'; c.fillRect(8 + i * 6, 10, 4, 16); ell(c, 10 + i * 6, 10, 2, 3, '#e8e8f0'); } });
 }
 
+function longGun(barrel, stock, twin) {
+  return sculpt(48, 24, c => {
+    poly(c, [4, 14, 20, 11, 22, 17, 6, 20], lin(c, 0, 11, 0, 20, [stock, '#2a160a']));
+    c.fillStyle = barrel; c.fillRect(20, 10, 26, 3); if (twin) c.fillRect(20, 13, 26, 2);
+    c.fillStyle = '#3a3e48'; c.fillRect(20, 12, 6, 6);
+  });
+}
+function shells() {
+  return sculpt(32, 32, c => { for (let i = 0; i < 4; i++) { c.fillStyle = '#a01818'; c.fillRect(6 + i * 6, 12, 5, 12); c.fillStyle = '#c89a3a'; c.fillRect(6 + i * 6, 22, 5, 4); } });
+}
+function page(col) {
+  return sculpt(32, 32, c => {
+    poly(c, [6, 6, 26, 4, 27, 28, 7, 28], lin(c, 0, 4, 0, 28, ['#d8ccb0', '#9a8a6a']));
+    c.fillStyle = '#5a4a3a'; for (let i = 0; i < 4; i++) c.fillRect(9, 8 + i * 3, 14 - (i % 2) * 4, 1);
+  }, c => { ell(c, 17, 21, 4, 4, col); ell(c, 17, 21, 1.5, 1.5, '#ffffff'); });
+}
+
 // ------------------------------------------------------------------------------------------------------------ decor
 function grave() {
   return sculpt(48, 48, c => {
@@ -199,6 +216,13 @@ function clock() {
     c.fillStyle = '#100808'; c.fillRect(12, 26, 8, 28); ell(c, 16, 46, 3, 3, '#c89a3a');
   });
 }
+function lamp() {
+  return sculpt(32, 64, c => {
+    c.fillStyle = '#1a1a22'; c.fillRect(15, 22, 3, 42); c.fillRect(11, 61, 11, 3);
+    c.fillStyle = '#2a2a34'; c.fillRect(10, 8, 13, 3); c.fillRect(10, 22, 13, 2); c.fillRect(10, 8, 2, 16); c.fillRect(21, 8, 2, 16);
+    poly(c, [9, 8, 16, 2, 24, 8], '#2a2a34');
+  }, c => { c.fillStyle = '#ffc060'; c.fillRect(12, 11, 9, 11); ell(c, 16.5, 16, 2, 3, '#fff0c0'); });
+}
 function brazier() {
   return sculpt(32, 64, c => {
     c.fillStyle = '#2a2a34'; c.fillRect(15, 34, 3, 30); c.fillRect(9, 61, 15, 3);
@@ -215,9 +239,11 @@ export function buildSprites() {
     stag: { img: stag(), h: 1.35 }, widow: { img: widow(), h: 1.3 }, waiter: { img: waiter(), h: 1.2 },
     chest: { img: chest(false), h: 0.42 }, chestOpen: { img: chest(true), h: 0.42 },
     keyBrass: { img: key('#e0b040'), h: 0.2 }, keyBone: { img: key('#e8e0cc'), h: 0.2 },
-    bullets: { img: ammo(), h: 0.28 }, medkit: { img: medkit(), h: 0.28 }, cartridges: { img: cartridges(), h: 0.28 },
+    bullets: { img: ammo(), h: 0.28 }, shells: { img: shells(), h: 0.26 },
+    shotgun: { img: longGun('#5a5e6a', '#6a3a1a', true), h: 0.22 }, rifle: { img: longGun('#8a8e9a', '#5a3014', false), h: 0.22 },
+    banish: { img: page('#a0ff90'), h: 0.3 }, flame: { img: page('#ff5020'), h: 0.3 }, leech: { img: page('#ff2040'), h: 0.3 }, dread: { img: page('#a060ff'), h: 0.3 }, medkit: { img: medkit(), h: 0.28 }, cartridges: { img: cartridges(), h: 0.28 },
     grave: { img: grave(), h: 0.55 }, stump: { img: stump(), h: 0.6 }, bones: { img: bones(), h: 0.25 },
     candles: { img: candles(), h: 0.75, light: [1.0, 0.6, 0.25] }, armchair: { img: armchair(), h: 0.5 }, clock: { img: clock(), h: 0.95 },
-    brazier: { img: brazier(), h: 0.7, light: [1.1, 0.5, 0.18] },
+    brazier: { img: brazier(), h: 0.7, light: [1.1, 0.5, 0.18] }, lamp: { img: lamp(), h: 0.8, light: [0.9, 0.62, 0.3] },
   };
 }

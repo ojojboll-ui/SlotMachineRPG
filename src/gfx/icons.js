@@ -85,5 +85,12 @@ const fpRifle = () => sculpt(128, 96, c => {
   c.fillStyle = '#2a2e38'; c.fillRect(30, 24, 5, 4);
   sleeve(c, 90, 90); fist(c, 84, 80);
 });
-export function buildWeapons() { return { sabre: fpSabre(), revolver: fpRevolver(), rifle: fpRifle() }; }
+const fpShotgun = () => sculpt(128, 96, c => {
+  poly(c, [34, 30, 50, 24, 70, 58, 56, 64], lin(c, 0, 24, 0, 64, ['#7a7e8a', '#3a3e48', '#1e2028']));    // two barrels
+  poly(c, [44, 26, 52, 23, 72, 56, 64, 60], lin(c, 0, 23, 0, 60, ['#9a9eac', '#4a4e5a']));
+  c.fillStyle = '#14161c'; c.fillRect(35, 29, 5, 4); c.fillRect(44, 25, 5, 4);
+  poly(c, [56, 56, 76, 50, 114, 96, 80, 96], lin(c, 56, 0, 114, 0, ['#5a3014', '#9a5a28', '#4a2410']));
+  sleeve(c, 92, 90); fist(c, 84, 80);
+});
+export function buildWeapons() { return { sabre: fpSabre(), revolver: fpRevolver(), shotgun: fpShotgun(), rifle: fpRifle() }; }
 export const flash = () => sculpt(40, 40, () => {}, c => { poly(c, [20, 0, 25, 14, 40, 20, 25, 26, 20, 40, 15, 26, 0, 20, 15, 14], '#ffd060'); ell(c, 20, 20, 7, 7, '#fff8e0'); }, { outline: 0 });

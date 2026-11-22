@@ -26,7 +26,7 @@ export function createView(VW, VH) {
     // light at a world point and distance, written to lr/lg/lb
     let lr = 0, lg = 0, lb = 0;
     const light = (wx, wy, d) => {
-      const f = Math.max(0, 1 - d / 4.2), k = f * f * (s.flash ? 1 + s.flash : 1);
+      const f = Math.max(0, 1 - d / 5.6), k = f * f * (s.flash ? 1 + s.flash : 1);
       lr = amb[0] + lan[0] * k; lg = amb[1] + lan[1] * k; lb = amb[2] + lan[2] * k;
       if (lm) {
         const ix = Math.max(0, Math.min(lmW - 1, (wx * lmS) | 0)), iy = Math.max(0, Math.min(L.h * lmS - 1, (wy * lmS) | 0)), j = (iy * lmW + ix) * 3;
@@ -131,7 +131,7 @@ export function createView(VW, VH) {
       const ys = Math.max(0, Math.floor(top)), ye = Math.min(VH, Math.ceil(bottom));
       light(sp.x, sp.y, ty);
       if (sp.bright) { lr += sp.bright; lg += sp.bright; lb += sp.bright; }
-      const ff = fogAt(ty), alpha = sp.alpha ?? 1, tint = sp.tint;
+      const ff = fogAt(ty) * (sp.fogK ?? 1), alpha = sp.alpha ?? 1, tint = sp.tint;
       for (let x = xs; x < xe; x++) {
         if (ty >= zbuf[x]) continue;
         let u = Math.floor((x - (cx - wPx / 2)) / wPx * img.w); if (sp.flip) u = img.w - 1 - u;

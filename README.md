@@ -8,15 +8,23 @@ Demo play only. There is no real money in this build.
 
 ## The game
 
-- **The crawl:** a generated maze per realm, seen in first person through a grid raycaster with sliding doors,
-  textured floors and ceilings, coloured light and fog. Turn-based like Doom RPG: the things in the dark move only
-  when you do. A minimap draws itself as you explore.
+- **The crawl:** each realm is a generated set of small, medium and large rooms that open into one another, with
+  pillars in the big halls, seen in first person through a grid raycaster with sliding doors, textured floors and
+  ceilings, coloured light and fog. Turn-based like Doom RPG: the things in the dark move only when you do. A minimap
+  draws itself as you explore.
+- **Choosing what to kill.** Rooms wake together, so fights are against groups. Tap an enemy (or press T) to aim at
+  it; anything in front of you within your arms' reach can be hit. Enemies have roles: healers mend their allies,
+  cultists shoot from afar, hounds run two steps a turn, brutes hit hard, shades walk through doors, and each guardian
+  summons help.
 - **Only fights and chests spin.** Walking, turning, medkits and the Sign of Banishing are free turns. Attacking and
   opening a chest are paid spins at your bet.
-- **The reels fight.** The middle row strikes with the arms you hold (sabre: blades, revolver and rifle: gunshots,
-  each with its own reach and ammunition), lanterns block, tomes whisper. Every winning line fires its symbol's power:
+- **The reels fight.** The middle row strikes with the arms you hold (sabre: blades; revolver, coach gun and rifle:
+  gunshots, each with its own reach and ammunition; the coach gun's spread also hits whatever stands next to the
+  target), lanterns block, tomes whisper. Every winning line fires its symbol's power:
   hits, wards, healing, stuns and the Elder Sign's critical. Silver bullets in Hold & Spin each hit; during Blood Moon
   free spins the dark holds still.
+- **Pickups and black magic.** Ammunition, medkits, the coach gun, the rifle and pages of black magic lie about:
+  Sign of Banishing, Black Flame (every enemy in sight), Blood Leech and Veil of Dread. Casting needs no spin.
 - **Chests** hold the brass and bone keys that open each realm's two locked doors, and what the reels show decides
   the rest: rounds, medkits, wards, cartridges, signs, more health, a sharper sabre.
 - **Three realms:** The Black Wood, Ashcombe Manor and The Crypt Beneath, each with its own textures, enemies and a
@@ -44,4 +52,4 @@ Everything on screen and everything you hear is generated in code at start-up. T
 | `src/audio/` | FM synthesis and the sequencer from One-Armed Hero, plus the dungeon's sounds |
 
 Controls: arrows or W/S walk, A/D sidestep, Q/E or left/right turn, Space attack or open, H medkit, F sign,
-R change arms, M map.
+T next target, F black magic (1-4 to cast), R change arms, M map.

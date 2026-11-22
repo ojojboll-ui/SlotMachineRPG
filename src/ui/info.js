@@ -1,7 +1,7 @@
 // The information overlay (plain HTML over the game): how the crawl works, paytable, rules, RTP, history, settings.
 
 import * as M from '../slot/machine.js';
-import { THEME, WEAPONS, LINE_HIT, LINE_WARD, LINE_HEAL, LINE_TOME, TOME_STUN, ROW_TOME, ROW_WARD, EYE_HIT, SILVER_HIT, SILVER_GRAND, SIGN_DAMAGE, CHEST, HERO } from '../world/data.js';
+import { THEME, WEAPONS, LINE_HIT, LINE_WARD, LINE_HEAL, LINE_TOME, TOME_STUN, ROW_TOME, ROW_WARD, EYE_HIT, SILVER_HIT, SILVER_GRAND, CHEST, SPELLS, ENEMIES, ROLE_TAGS } from '../world/data.js';
 import { VERSION, DEMO, DEMO_BALANCE } from '../config.js';
 
 const pct = (x, d = 2) => (x * 100).toFixed(d) + '%';
@@ -19,21 +19,28 @@ export function openInfo({ SYM, wallet: w, settings: s, onSettings }) {
 <p class="note">${DEMO ? 'A demonstration with play credits. No real money can be staked or won.' : ''} For adults only (18+). Gambling can be addictive: play responsibly.</p>
 
 <h3>The crawl</h3>
-<p>Walking, turning, using a medkit or a Sign of Banishing costs nothing: those turns are free, but the things in the dark move whenever you do. <b>Only two things spin the reels:</b> attacking, and opening a chest. Each such spin is an ordinary paid spin at your bet.</p>
+<p>Walking, turning, using a medkit or casting black magic costs nothing: those turns are free, but the things in the dark move whenever you do. <b>Only two things spin the reels:</b> attacking, and opening a chest. Each such spin is an ordinary paid spin at your bet.</p>
 <p>Each realm hides two locked doors. The <b>brass key</b> and the <b>bone key</b> lie in chests. A guardian stands before the way out.</p>
-<p><b>Controls.</b> Arrows or W/S to walk, A/D to sidestep, Q/E or left/right to turn, Space to attack or open, H medkit, F sign, R change arms, M map.</p>
+<p><b>Choosing what to kill.</b> The realms are rooms full of things, and each spin strikes one of them. Tap an enemy in the view (or press T) to aim at it; red brackets mark your target and a bar shows its health. Anything within your arms' reach and in front of you can be hit. Some are worth killing first:</p>
+<table><tr><th>Enemy</th><th>Health</th><th>Hits</th><th>Reach</th><th>Trait</th></tr>
+${Object.values(ENEMIES).map(E => `<tr><td>${E.name}</td><td>${E.hp}</td><td>${E.dmg[0]}–${E.dmg[1]}</td><td>${E.range}</td><td>${E.role ? ROLE_TAGS[E.role] : ''}</td></tr>`).join('')}</table>
+<p>Healers mend the most hurt ally in sight; summoners call a new minion every few turns; when one thing in a room wakes, the whole room wakes.</p>
+<p><b>Controls.</b> Arrows or W/S to walk, A/D to sidestep, Q/E or left/right to turn, Space to attack or open, T next target, H medkit, F black magic (1–4 to cast), R change arms, M map.</p>
 
 <h3>How the reels fight</h3>
 <p><b>The middle row</b> always strikes, win or not, depending on the arms you hold:</p>
 <table><tr><th>Arms</th><th>Strikes with</th><th>Per symbol</th><th>Reach</th><th>Ammunition</th></tr>
 ${Object.values(WEAPONS).map(W => `<tr><td>${W.name}</td><td>${ico(W.key)}</td><td>${W.row}</td><td>${W.range} tile${W.range > 1 ? 's' : ''}</td><td>${W.ammo ? '1 per paid spin' : 'none'}</td></tr>`).join('')}</table>
+<p>The coach gun's spread also hits every enemy standing next to your target for ${Math.round(WEAPONS.shotgun.spread * 100)}% of the damage. You find the coach gun in the wood and the rifle in the manor.</p>
 <p>Whatever you hold: each ${ico('tome')} on the row whispers for ${ROW_TOME}, each ${ico('shield')} blocks ${ROW_WARD}, each reel the ${ico('eye')} covers hits for ${EYE_HIT}.</p>
 <p><b>Every winning line fights</b> (3 / 4 / 5 of a kind): ${ico('sword')} and ${ico('fire')} hit for ${s345(LINE_HIT)}; ${ico('shield')} blocks ${s345(LINE_WARD)}; ${ico('flask')} heals ${s345(LINE_HEAL)}; ${ico('tome')} hits for ${s345(LINE_TOME)} and stuns for ${s345(TOME_STUN)} turns; ${ico('crown')} doubles all damage that spin (×3 for five).</p>
 <p>${ico('obol')} Hold &amp; Spin: each silver bullet hits for ${SILVER_HIT}, a full screen for ${SILVER_GRAND} more. ${ico('moon')} Free spins: the dark holds still and every free spin is another attack.</p>
-<p><b>Sign of Banishing.</b> Dark magic that needs no spin: ${SIGN_DAMAGE} damage to the nearest thing in sight.</p>
+<h3>Black magic</h3>
+<p>Pages of black magic lie about the realms. Casting needs no spin, but the dark moves afterwards.</p>
+<table>${Object.values(SPELLS).map(S => `<tr><td>${S.name}</td><td style="text-align:left">${S.desc}</td></tr>`).join('')}</table>
 
 <h3>What chests hold</h3>
-<p>Opening a chest spins once. Besides any key inside, the middle row gives: each ${ico('fire')} ${CHEST.bulletsPerGun} rounds, each ${ico('shield')} ward +${CHEST.wardPerLantern}, ${CHEST.flasksForMedkit} or more ${ico('flask')} a medkit, ${CHEST.tomesForSign} or more ${ico('tome')} a Sign of Banishing. Winning lines of ${ico('fire')} give ${s345(CHEST.bulletLine)} rounds, ${ico('flask')} ${s345(CHEST.medkitLine)} medkits, ${ico('shield')} a lasting ward of ${s345(CHEST.wardLine)}, ${ico('crown')} ${s345(CHEST.hpLine)} more maximum health, ${ico('tome')} ${s345(CHEST.signLine)} Signs of Banishing, ${ico('sword')} a sharper sabre. Every ${ico('obol')} gives a rifle cartridge.</p>
+<p>Opening a chest spins once. Besides any key inside, the middle row gives: each ${ico('fire')} ${CHEST.bulletsPerGun} rounds, each ${ico('shield')} ward +${CHEST.wardPerLantern}, ${CHEST.flasksForMedkit} or more ${ico('flask')} a medkit, ${CHEST.tomesForSpell} or more ${ico('tome')} a Black Flame. Winning lines of ${ico('fire')} give ${s345(CHEST.bulletLine)} rounds, ${ico('flask')} ${s345(CHEST.medkitLine)} medkits, ${ico('shield')} a lasting ward of ${s345(CHEST.wardLine)}, ${ico('crown')} ${s345(CHEST.hpLine)} more maximum health, ${ico('tome')} ${s345(CHEST.spellLine)} Signs of Banishing, ${ico('sword')} a sharper sabre. Every ${ico('obol')} gives a rifle cartridge.</p>
 
 <h3>Paytable <small>at bet ${fmt(bet)}</small></h3>
 <table><tr><th></th><th>3</th><th>4</th><th>5</th></tr>
